@@ -1,55 +1,80 @@
-const { defineConfig } = require('rollup');
-const typescript = require('@rollup/plugin-typescript');
-const resolve = require('@rollup/plugin-node-resolve');
-const commonjs = require('@rollup/plugin-commonjs');
-const dts = require('rollup-plugin-dts').default;
+import resolve from '@rollup/plugin-node-resolve';
+import commonjs from '@rollup/plugin-commonjs';
+import { babel } from '@rollup/plugin-babel';
 
-module.exports = defineConfig([
-  // ES 模块构建
+export default [
+  // CommonJS
   {
-    input: 'src/index.ts',
-    output: [
-      {
-        file: 'dist/index.js',
-        format: 'cjs',
-        sourcemap: true,
-        exports: 'named'
-      },
-      {
-        file: 'dist/index.esm.js',
-        format: 'es',
-        sourcemap: true
-      }
-    ],
-    plugins: [
-      resolve({
-        preferBuiltins: true,
-        browser: false
-      }),
-      commonjs(),
-      typescript({
-        tsconfig: './tsconfig.json',
-        declaration: false,
-        sourceMap: true
-      })
-    ],
-    external: [
-      // 外部依赖，不打包到最终文件中
-      'fs',
-      'path',
-      'util',
-      'events'
-    ]
-  },
-  // 类型定义构建
-  {
-    input: 'src/index.ts',
+    input: 'src/index.js',
     output: {
-      file: 'dist/index.d.ts',
-      format: 'es'
+      file: 'lib/cjs.js',
+      format: 'cjs',
+      exports: 'named',
     },
     plugins: [
-      dts()
-    ]
-  }
-]);
+      resolve(),
+      commonjs(),
+      babel({
+        babelHelpers: 'bundled',
+        presets: ['@babel/preset-env'],
+        extensions: ['.js'],
+        exclude: 'node_modules/**'
+      })
+    ],
+  },
+  // ES Module
+  {
+    input: 'src/index.js',
+    output: {
+      file: 'lib/m.js',
+      format: 'esm',
+    },
+    plugins: [
+      resolve(),
+      commonjs(),
+      babel({
+        babelHelpers: 'bundled',
+        presets: ['@babel/preset-env'],
+        extensions: ['.js'],
+        exclude: 'node_modules/**'
+      })
+    ],
+  },
+  // UMD
+  {
+    input: 'src/index.js',
+    output: {
+      file: 'lib/umd.js',
+      format: 'umd',
+      name: 'DemoLib',
+    },
+    plugins: [
+      resolve(),
+      commonjs(),
+      babel({
+        babelHelpers: 'bundled',
+        presets: ['@babel/preset-env'],
+        extensions: ['.js'],
+        exclude: 'node_modules/**'
+      })
+    ],
+  },
+  // AMD
+  {
+    input: 'src/index.js',
+    output: {
+      file: 'lib/amd.js',
+      format: 'amd',
+    },
+    plugins: [
+      resolve(),
+      commonjs(),
+      babel({
+        babelHelpers: 'bundled',
+        presets: ['@babel/preset-env'],
+        extensions: ['.js'],
+        exclude: 'node_modules/**'
+      })
+    ],
+  },
+];
