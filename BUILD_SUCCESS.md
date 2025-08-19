@@ -68,7 +68,7 @@ npm install @webpilot/agent
 
 ### 基本使用
 ```typescript
-import { quickStart, WebPilotAgent } from '@webpilot/agent';
+import { quickStart, AgentCore } from '@webpilot/agent';
 
 // 快速开始
 const result = await quickStart('basic', {
@@ -77,7 +77,7 @@ const result = await quickStart('basic', {
 });
 
 // 手动创建代理
-const agent = new WebPilotAgent({
+const agent = new AgentCore({
   llmProvider: {
     type: 'openai',
     apiKey: process.env.OPENAI_API_KEY,
@@ -149,7 +149,7 @@ packages/webpilot-agent/
 
 ## 🎯 核心 API
 
-### WebPilotAgent 类
+### AgentCore 类
 - `initialize()` - 初始化代理
 - `execute(task)` - 执行单个任务
 - `executeBatch(tasks, options?)` - 批量执行

@@ -153,7 +153,7 @@ npm install @webpilot/agent
 
 #### 基本使用
 ```typescript
-import { quickStart, WebPilotAgent } from '@webpilot/agent';
+import { quickStart, AgentCore } from '@webpilot/agent';
 
 // 快速开始
 const result = await quickStart('basic', {
@@ -162,7 +162,7 @@ const result = await quickStart('basic', {
 });
 
 // 或手动创建
-const agent = new WebPilotAgent({
+const agent = new AgentCore({
   llmProvider: {
     type: 'openai',
     apiKey: process.env.OPENAI_API_KEY,

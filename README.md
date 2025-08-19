@@ -1,9 +1,9 @@
-# WebPilot Agent Package
+# agent-core
 
-[![npm version](https://badge.fury.io/js/@webpilot/agent.svg)](https://badge.fury.io/js/@webpilot/agent)
+[![npm version](https://badge.fury.io/js/agent-core.svg)](https://badge.fury.io/js/agent-core)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org)
 
-WebPilot Agent 是一个基于动态流循环架构的智能网页操作代理包，支持页面分析、DOM操作、表单填充等功能。
+agent-core 是一个基于动态流循环架构的智能网页操作代理包，支持页面分析、DOM操作、表单填充等功能。
 
 ## 特性
 
@@ -17,12 +17,13 @@ WebPilot Agent 是一个基于动态流循环架构的智能网页操作代理�
 
 ## 安装
 
+yarn add agent-core
 ```bash
-npm install @webpilot/agent
+npm install agent-core
 # 或
-yarn add @webpilot/agent
+yarn add agent-core
 # 或
-pnpm add @webpilot/agent
+pnpm add agent-core
 ```
 
 ## 快速开始
@@ -30,16 +31,10 @@ pnpm add @webpilot/agent
 ### 基本使用
 
 ```typescript
-import { WebPilotAgent, quickStart } from '@webpilot/agent';
-
-// 快速启动 - 使用默认配置
-const result = await quickStart('basic', {
-  task: 'analyze_page',
-  target: 'https://example.com'
-});
+import { AgentCore, quickStart } from 'agent-core';
 
 // 手动创建代理
-const agent = new WebPilotAgent({
+const agent = new AgentCore({
   llmProvider: {
     type: 'openai',
     apiKey: process.env.OPENAI_API_KEY,
@@ -58,7 +53,7 @@ const result = await agent.execute({
 ### 页面分析
 
 ```typescript
-import { analyzePage } from '@webpilot/agent';
+import { analyzePage } from 'agent-core';
 
 const analysis = await analyzePage('https://example.com', {
   includeImages: true,
@@ -73,7 +68,7 @@ console.log(analysis.domStructure);
 ### DOM操作
 
 ```typescript
-import { manipulateDOM } from '@webpilot/agent';
+import { manipulateDOM } from 'agent-core';
 
 const result = await manipulateDOM('https://example.com', {
   actions: [
@@ -87,7 +82,7 @@ const result = await manipulateDOM('https://example.com', {
 ### 批量处理
 
 ```typescript
-import { batchProcess } from '@webpilot/agent';
+import { batchProcess } from 'agent-core';
 
 const tasks = [
   { task: 'analyze_page', target: 'https://example1.com' },
@@ -105,12 +100,11 @@ const results = await batchProcess(tasks, {
 
 ### 预设配置
 
-- `basic`: 基础配置，适合简单任务
 - `performance`: 性能优化配置，适合大量操作
 - `debug`: 调试配置，包含详细日志
 
 ```typescript
-import { createAgent, PRESET_CONFIGS } from '@webpilot/agent';
+import { createAgent, PRESET_CONFIGS } from 'agent-core';
 
 // 使用预设配置
 const agent = createAgent('performance', {
@@ -152,12 +146,12 @@ const customConfig = {
   }
 };
 
-const agent = new WebPilotAgent(customConfig);
+const agent = new AgentCore(customConfig);
 ```
 
 ## API 参考
 
-### WebPilotAgent
+### AgentCore
 
 主要的代理类，提供完整的功能。
 
@@ -182,7 +176,7 @@ const agent = new WebPilotAgent(customConfig);
 ```bash
 # 克隆项目
 git clone <repository-url>
-cd webpilot/packages/webpilot-agent
+cd agent-core
 
 # 安装依赖
 npm install
@@ -209,9 +203,10 @@ npm run build
 ```
 
 构建产物：
-- `dist/index.esm.js` - ES 模块格式
-- `dist/index.cjs.js` - CommonJS 格式  
-- `dist/types/` - TypeScript 类型定义
+- `lib/m.js` - ES 模块格式
+- `lib/cjs.js` - CommonJS 格式
+- `lib/umd.js` - UMD 格式
+- `lib/amd.js` - AMD 格式
 
 ## 许可证
 
