@@ -1,4 +1,4 @@
-const { hello } = require('../lib/cjs');
+import { hello }  from'../lib/cjs';
 
 describe('hello', () => {
   it('默认参数', () => {

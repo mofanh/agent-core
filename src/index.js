@@ -1,5 +1,14 @@
 // 导出 LLM 相关功能
 export { llmStreamRequest } from './llm/stream.js';
+export { 
+  LLM, 
+  LLMFactory, 
+  sparkRequestHandler, 
+  openaiRequestHandler,
+  createSparkLLM, 
+  createOpenAILLM,
+  sparkStreamRequest 
+} from './llm/index.js';
 // agent-core 主入口，根据 README 示例导出核心 API
 
 
@@ -19,21 +28,126 @@ export class AgentCore {
   constructor(config = {}) {
     this.config = config;
     this.initialized = false;
+    this.llm = null; // LLM 实例
   }
-  async initialize() {}
-  async execute(task) {}
-  async executeBatch(tasks, options = {}) {}
-  async executeStream(task) {}
-  async getHealth() {}
-  async getCapabilities() {}
-  async shutdown() {}
+
+  async initialize() {
+    this.initialized = true;
+    
+    // 如果配置中包含 LLM 设置，初始化 LLM 实例
+    if (this.config.llm) {
+      const { LLM, LLMFactory } = await import('./llm/index.js');
+      
+      if (this.config.llm.provider && LLMFactory.getProviders().includes(this.config.llm.provider)) {
+        // 使用工厂模式创建已注册的提供商
+        this.llm = LLMFactory.create(this.config.llm.provider, this.config.llm.options);
+      } else if (this.config.llm.requestHandler) {
+        // 直接使用配置创建
+        this.llm = new LLM(this.config.llm);
+      } else {
+        // 兼容旧版本配置或自定义处理器
+        this.llm = new LLM({
+          requestHandler: this.config.llm.requestImpl || this.config.llm.requestHandler,
+          provider: this.config.llm.provider || 'custom',
+          options: this.config.llm.options || {}
+        });
+      }
+    }
+  }
+
+  async execute(task) {
+    if (!this.initialized) {
+      throw new Error('AgentCore 未初始化，请先调用 initialize()');
+    }
+    
+    // 如果任务需要 LLM 处理
+    if (task.type === 'llm' && this.llm) {
+      return await this.llm.post(task.payload);
+    }
+    
+    // 其他任务类型的处理逻辑
+    return { status: 'completed', task };
+  }
+
+  async executeBatch(tasks, options = {}) {
+    const results = [];
+    for (const task of tasks) {
+      try {
+        const result = await this.execute(task);
+        results.push({ success: true, result });
+      } catch (error) {
+        results.push({ success: false, error: error.message });
+      }
+    }
+    return results;
+  }
+
+  async executeStream(task) {
+    if (!this.initialized) {
+      throw new Error('AgentCore 未初始化，请先调用 initialize()');
+    }
+    
+    // 如果任务需要 LLM 流式处理
+    if (task.type === 'llm' && this.llm) {
+      return this.llm.post(task.payload);
+    }
+    
+    // 其他流式任务处理
+    return async function* () {
+      yield { status: 'completed', task };
+    }();
+  }
+
+  async getHealth() {
+    const health = {
+      status: this.initialized ? 'healthy' : 'not_initialized',
+      timestamp: new Date().toISOString(),
+      components: {}
+    };
+
+    // 检查 LLM 连接状态
+    if (this.llm) {
+      try {
+        const llmConnected = await this.llm.isConnect();
+        health.components.llm = {
+          status: llmConnected ? 'connected' : 'disconnected',
+          connected: llmConnected
+        };
+      } catch (error) {
+        health.components.llm = {
+          status: 'error',
+          error: error.message
+        };
+      }
+    }
+
+    return health;
+  }
+
+  async getCapabilities() {
+    const capabilities = {
+      core: ['execute', 'executeBatch', 'executeStream', 'getHealth'],
+      llm: this.llm ? ['post', 'isConnect', 'streamRequest'] : []
+    };
+    return capabilities;
+  }
+
+  async shutdown() {
+    this.initialized = false;
+    this.llm = null;
+  }
 }
 
 // 快速启动
 export async function quickStart(preset = 'basic', options = {}) {
   const agent = new AgentCore({ ...PRESET_CONFIGS[preset], ...options });
   await agent.initialize();
-  return agent.execute(options);
+  
+  if (options.task) {
+    return agent.execute(options.task);
+  }
+  
+  return agent;
 }
 
 // 页面分析
@@ -61,7 +175,48 @@ export async function batchProcess(tasks, options = {}) {
 // 创建 agent（支持预设名或自定义配置）
 export function createAgent(presetOrConfig, options = {}) {
   if (typeof presetOrConfig === 'string') {
-    return new AgentCore({ ...PRESET_CONFIGS[presetOrConfig], ...options });
+    const config = { ...PRESET_CONFIGS[presetOrConfig], ...options };
+    return new AgentCore(config);
   }
-  return new AgentCore({ ...presetOrConfig });
+  return new AgentCore({ ...presetOrConfig, ...options });
+}
+
+// 创建带 LLM 的 Agent
+export function createLLMAgent(provider, options = {}) {
+  let llmConfig;
+  
+  if (typeof provider === 'string') {
+    // 使用预注册的提供商
+    llmConfig = {
+      provider,
+      options
+    };
+  } else if (typeof provider === 'function') {
+    // 直接传入请求处理函数
+    llmConfig = {
+      requestHandler: provider,
+      provider: options.provider || 'custom',
+      options: options.options || {}
+    };
+  } else {
+    // 完整配置对象
+    llmConfig = provider;
+  }
+
+  const config = {
+    ...PRESET_CONFIGS[options.preset || 'basic'],
+    llm: llmConfig,
+    ...options
+  };
+  
+  return new AgentCore(config);
+}
+
+// 便捷的创建函数
+export function createSparkAgent(options = {}) {
+  return createLLMAgent('spark', options);
+}
+
+export function createOpenAIAgent(options = {}) {
+  return createLLMAgent('openai', options);
 }
