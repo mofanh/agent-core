@@ -8,22 +8,77 @@ import {
   sparkRequestHandler 
 } from '../src/index.js';
 
-describe('LLM 可扩展库测试', () => {
-  test('LLM 类应该接受配置对象', () => {
-    const mockHandler = async function* (payload) {
-      yield { content: 'test' };
-    };
+async function* sparkStreamRequest(payload) {
+    console.log('sparkStreamRequest called with payload:', payload);
+  const apiKey = process.env.SPARK_API_KEY || 'nPLgqzEHEtEjZcnsDKdS:mZIvrDDeVfZRpYejdKau'; // 请替换为真实key
+  const url = 'https://spark-api-open.xf-yun.com/v1/chat/completions';
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.body) throw new Error('No response body');
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+  for await (const chunk of res.body) {
+    buffer += decoder.decode(chunk, { stream: true });
+    let lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (line.startsWith('data:')) {
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') return;
+        try {
+            // console.log('Received chunk:', data);
+          yield JSON.parse(data);
+        } catch {}
+      }
+    }
+  }
+}
 
+describe('LLM 可扩展库测试', () => {
+  test('LLM 类应该接受配置对象', async () => {
     const llm = new LLM({
-      requestHandler: mockHandler,
+      requestHandler: sparkStreamRequest,
       provider: 'test',
       options: { timeout: 5000 }
     });
 
+    try {
+      const result = await llm.post({
+        model: '4.0Ultra',
+        messages: [
+          { role: 'user', content: '说一个程序员才懂的笑话' }
+        ],
+        stream: true
+      });
+      
+      // 遍历异步生成器获取数据
+      const chunks = [];
+      
+      try {
+        for await (const chunk of result) {
+          chunks.push(chunk);
+          console.log('收到数据块:', chunk.choices?.[0]?.delta || chunk);
+        }
+      } catch (error) {
+        console.log('数据接收过程中出错:', error.message);
+      }
+      
+      console.log('总共收到', chunks.length, '个数据块');
+      
+    } catch (error) {
+      console.log('请求过程中发生错误:', error.message);
+    }
+
     expect(llm.provider).toBe('test');
-    expect(llm.requestHandler).toBe(mockHandler);
+    expect(llm.requestHandler).toBe(sparkStreamRequest);
     expect(llm.options.timeout).toBe(5000);
-  });
+  }, 30000); // 设置测试超时为30秒，允许完整接收流式数据
 
   test('应该能注册自定义提供商', () => {
     const customHandler = async function* (payload) {
@@ -42,7 +97,7 @@ describe('LLM 可扩展库测试', () => {
   });
 
   test('createSparkLLM 应该创建星火 LLM 实例', () => {
-    const llm = createSparkLLM({ apiKey: 'test-key' });
+    const llm = createSparkLLM({ apiKey: 'nPLgqzEHEtEjZcnsDKdS:mZIvrDDeVfZRpYejdKau' });
     expect(llm.provider).toBe('spark');
     expect(llm.options.apiKey).toBe('test-key');
   });
