@@ -62,7 +62,7 @@ describe("LLM 可扩展库测试", () => {
       try {
         for await (const chunk of result) {
           chunks.push(chunk);
-          console.log("收到数据块:", chunk.choices?.[0]?.delta || chunk);
+          // console.log("收到数据块:", chunk.choices?.[0]?.delta || chunk);
         }
       } catch (error) {
         console.log("数据接收过程中出错:", error.message);
@@ -94,16 +94,11 @@ describe("LLM 可扩展库测试", () => {
     expect(llm.options.defaultModel).toBe("custom-model");
   });
 
-  test("createSparkLLM 应该创建星火 LLM 实例", () => async () => {
+  test("createSparkLLM 应该创建星火 LLM 实例", async () => {
     const llm = createSparkLLM({
       apiKey: "nPLgqzEHEtEjZcnsDKdS:mZIvrDDeVfZRpYejdKau",
     });
 
-    // await llm.post({
-    //   model: "4.0Ultra",
-    //   messages: [{ role: "user", content: "说一个程序员才懂的笑话" }],
-    //   stream: true,
-    // });
     try {
       const result = await llm.post({
         model: "4.0Ultra",
@@ -132,7 +127,7 @@ describe("LLM 可扩展库测试", () => {
     expect(llm.options.apiKey).toBe(
       "nPLgqzEHEtEjZcnsDKdS:mZIvrDDeVfZRpYejdKau"
     );
-  });
+  }, 30000); // 设置测试超时为30秒
 
   test("createOpenAILLM 应该创建 OpenAI LLM 实例", () => {
     const llm = createOpenAILLM({ model: "gpt-4" });
