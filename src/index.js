@@ -9,6 +9,16 @@ export {
   createOpenAILLM,
   sparkStreamRequest 
 } from './llm/index.js';
+
+// 导出 Prompt 相关功能
+export { PromptBuilder } from './prompt/index.js';
+export { 
+  PROMPT_TEMPLATES,
+  createSystemPrompt,
+  createUserPrompt,
+  createAssistantPrompt,
+  createFunctionPrompt
+} from './prompt/templates.js';
 // agent-core 主入口，根据 README 示例导出核心 API
 
 // 引入日志类
@@ -27,10 +37,24 @@ export class AgentCore {
     this.config = config;
     this.initialized = false;
     this.llm = null; // LLM 实例
+    this.promptBuilder = null; // Prompt 构建器
   }
 
   async initialize() {
     this.initialized = true;
+    
+    // 初始化 Prompt 构建器
+    if (this.config.prompt) {
+      const { PromptBuilder } = await import('./prompt/index.js');
+      this.promptBuilder = new PromptBuilder(this.config.prompt);
+      
+      // 注册自定义模板
+      if (this.config.prompt.customTemplates) {
+        for (const [name, template] of Object.entries(this.config.prompt.customTemplates)) {
+          this.promptBuilder.registerTemplate(name, template);
+        }
+      }
+    }
     
     // 如果配置中包含 LLM 设置，初始化 LLM 实例
     if (this.config.llm) {
@@ -58,13 +82,34 @@ export class AgentCore {
       throw new Error('AgentCore 未初始化，请先调用 initialize()');
     }
     
-    // 如果任务需要 LLM 处理
-    if (task.type === 'llm' && this.llm) {
-      return await this.llm.post(task.payload);
+    let processedTask = task;
+    
+    // 1. 构建 prompt（如果任务需要）
+    if (task.buildPrompt && this.promptBuilder) {
+      const prompt = this.promptBuilder.build(task.buildPrompt);
+      processedTask = {
+        ...task,
+        payload: {
+          ...task.payload,
+          messages: prompt.messages
+        }
+      };
+    }
+    
+    // 2. LLM 处理
+    if (processedTask.type === 'llm' && this.llm) {
+      const llmResult = await this.llm.post(processedTask.payload);
+      
+      // 3. 处理 LLM 输出，可能触发下一轮循环
+      if (processedTask.onComplete && typeof processedTask.onComplete === 'function') {
+        return await processedTask.onComplete(llmResult, this);
+      }
+      
+      return llmResult;
     }
     
     // 其他任务类型的处理逻辑
-    return { status: 'completed', task };
+    return { status: 'completed', task: processedTask };
   }
 
   async executeBatch(tasks, options = {}) {
@@ -125,7 +170,8 @@ export class AgentCore {
   async getCapabilities() {
     const capabilities = {
       core: ['execute', 'executeBatch', 'executeStream', 'getHealth'],
-      llm: this.llm ? ['post', 'isConnect', 'streamRequest'] : []
+      llm: this.llm ? ['post', 'isConnect', 'streamRequest'] : [],
+      prompt: this.promptBuilder ? ['build', 'getTemplates', 'addTemplate'] : []
     };
     return capabilities;
   }
@@ -133,6 +179,7 @@ export class AgentCore {
   async shutdown() {
     this.initialized = false;
     this.llm = null;
+    this.promptBuilder = null;
   }
 }
 
