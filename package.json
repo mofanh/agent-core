@@ -1,21 +1,23 @@
 {
   "type": "module",
-  "name": "agent-core",
+  "name": "@mofanh/agent-core",
   "version": "1.0.0",
-  "description": "WebPilot Agent - 智能代理包，基于动态流程循环架构",
-  "main": "lib/index.js",
-  "module": "lib/index.esm.js",
-  "types": "lib/index.d.ts",
+  "description": "一个现代化的智能代理框架，提供统一的 LLM 接口、强大的 Prompt 构建系统和灵活的工作流编排能力",
+  "main": "lib/cjs.js",
+  "module": "lib/m.js",
+  "browser": "lib/umd.js",
   "files": [
-    "lib"
+    "lib",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
-  "build": "rollup -c",
-  "build:full": "./scripts/build.sh",
-  "build:watch": "rollup -c -w",
-  "dev": "tsx examples/index.js",
-  "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
-  "test:watch": "node --experimental-vm-modules ./node_modules/.bin/jest --watch",
+    "build": "rollup -c",
+    "build:full": "./scripts/build.sh",
+    "build:watch": "rollup -c -w",
+    "dev": "tsx examples/index.js",
+    "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
+    "test:watch": "node --experimental-vm-modules ./node_modules/.bin/jest --watch",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
@@ -29,15 +31,16 @@
     "version:major": "npm version major"
   },
   "keywords": [
-    "webpilot",
     "agent",
     "llm",
-    "mcp",
-    "dom",
-    "automation",
     "ai",
-    "browser",
-    "chrome-extension"
+    "prompt",
+    "workflow",
+    "automation",
+    "openai",
+    "spark",
+    "stream",
+    "typescript"
   ],
   "author": {
     "name": "WebPilot Team",
@@ -46,13 +49,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mofanh/webpilot.git",
-    "directory": "packages/webpilot-agent"
+    "url": "git+https://github.com/mofanh/agent-core.git"
   },
   "bugs": {
-    "url": "https://github.com/mofanh/webpilot/issues"
+    "url": "https://github.com/mofanh/agent-core/issues"
   },
-  "homepage": "https://github.com/mofanh/webpilot#readme",
+  "homepage": "https://github.com/mofanh/agent-core#readme",
   "engines": {
     "node": ">=16.0.0"
   },
