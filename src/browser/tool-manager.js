@@ -8,6 +8,8 @@ import { EventEmitter } from 'events';
 import Logger from '../utils/logger.js';
 import { BrowserInstance } from './browser-instance.js';
 import { BrowserSecurityPolicy } from './security/sandbox-policy.js';
+import { BrowserInstancePool } from './instance-pool.js';
+import { BrowserToolMonitor } from './monitor.js';
 import { BROWSER_TOOLS, TOOL_STATUS, getSupportedTools } from './index.js';
 
 /**
@@ -35,17 +37,59 @@ export class BrowserToolManager extends EventEmitter {
       viewport: config.viewport || { width: 1920, height: 1080 },
       timeout: config.timeout || 30000,
       security: config.security || {},
+      
+      // 实例池配置
+      instancePool: {
+        maxInstances: config.instancePool?.maxInstances || 3,
+        maxIdleTime: config.instancePool?.maxIdleTime || 5 * 60 * 1000,
+        maxReuseCount: config.instancePool?.maxReuseCount || 100,
+        warmupInstances: config.instancePool?.warmupInstances || 1,
+        enabled: config.instancePool?.enabled !== false,
+        ...config.instancePool
+      },
+      
+      // 监控配置
+      monitoring: {
+        enabled: config.monitoring?.enabled !== false,
+        metricsRetention: config.monitoring?.metricsRetention || 24 * 60 * 60 * 1000,
+        alertThresholds: {
+          errorRate: 0.1,
+          avgExecutionTime: 30000,
+          timeoutRate: 0.05,
+          ...config.monitoring?.alertThresholds
+        },
+        ...config.monitoring
+      },
+      
       ...config
     };
     
     this.logger = new Logger('BrowserToolManager');
-    this.browserInstance = null;
+    
+    // 浏览器实例管理
+    if (this.config.instancePool.enabled) {
+      this.instancePool = new BrowserInstancePool({
+        ...this.config.instancePool,
+        engine: this.config.engine,
+        launchOptions: {
+          headless: this.config.headless,
+          args: ['--no-sandbox', '--disable-dev-shm-usage'],
+          defaultViewport: this.config.viewport
+        }
+      });
+    } else {
+      this.browserInstance = null; // 传统单实例模式
+    }
+    
+    // 性能监控
+    this.monitor = new BrowserToolMonitor(this.config.monitoring);
+    
     this.securityPolicy = new BrowserSecurityPolicy(this.config.security);
     this.tools = new Map();
     this.executionHistory = [];
     this.isInitialized = false;
     
-    // 性能监控
+    // 传统性能监控（保持向后兼容）
     this.metrics = {
       toolsExecuted: 0,
       totalExecutionTime: 0,
@@ -93,11 +137,29 @@ export class BrowserToolManager extends EventEmitter {
     this.logger.info('初始化浏览器工具管理器');
     
     try {
-      // 初始化浏览器实例
-      this.browserInstance = new BrowserInstance(this.config);
+      // 初始化浏览器实例或实例池
+      if (this.instancePool) {
+        this.logger.info('使用浏览器实例池模式');
+        
+        // 设置实例池事件监听
+        this.setupInstancePoolEventHandlers();
+        
+        // 预热实例池
+        await this.instancePool.warmup();
+        this.logger.info(`实例池预热完成，当前实例数: ${this.instancePool.getStats().poolSize}`);
+        
+      } else {
+        this.logger.info('使用单浏览器实例模式');
+        
+        // 初始化单个浏览器实例
+        this.browserInstance = new BrowserInstance(this.config);
+        
+        // 监听浏览器事件
+        this.setupBrowserEventHandlers();
+      }
       
-      // 监听浏览器事件
-      this.setupBrowserEventHandlers();
+      // 设置监控事件监听
+      this.setupMonitorEventHandlers();
       
       // 预加载常用工具
       await this.preloadTools([BROWSER_TOOLS.NAVIGATE, BROWSER_TOOLS.EXTRACT]);
@@ -111,6 +173,62 @@ export class BrowserToolManager extends EventEmitter {
       this.emit('error', error);
       throw error;
     }
+  }
+
+  /**
+   * 设置实例池事件处理器
+   * @private
+   */
+  setupInstancePoolEventHandlers() {
+    this.instancePool.on('instanceCreated', (data) => {
+      this.logger.debug(`创建新浏览器实例: ${data.instanceId}, 池大小: ${data.poolSize}`);
+      this.emit('instanceCreated', data);
+    });
+    
+    this.instancePool.on('instanceDestroyed', (data) => {
+      this.logger.debug(`销毁浏览器实例: ${data.instanceId}, 重用次数: ${data.reuseCount}`);
+      this.emit('instanceDestroyed', data);
+    });
+    
+    this.instancePool.on('instanceAcquired', (data) => {
+      this.logger.debug(`获取浏览器实例: ${data.instanceId}, 来源池: ${data.fromPool}`);
+    });
+    
+    this.instancePool.on('instanceReturned', (data) => {
+      this.logger.debug(`归还浏览器实例: ${data.instanceId}, 重用次数: ${data.reuseCount}`);
+    });
+    
+    this.instancePool.on('cleanupCompleted', (data) => {
+      this.logger.debug(`实例池清理完成, 销毁: ${data.destroyedCount}, 池大小: ${data.poolSize}`);
+    });
+    
+    this.instancePool.on('error', (data) => {
+      this.logger.error('实例池错误:', data.error);
+      this.emit('instancePoolError', data);
+    });
+  }
+
+  /**
+   * 设置监控事件处理器
+   * @private
+   */
+  setupMonitorEventHandlers() {
+    this.monitor.on('alert', (alert) => {
+      this.logger.warn(`性能警报 [${alert.level}]: ${alert.message}`);
+      this.emit('performanceAlert', alert);
+    });
+    
+    this.monitor.on('executionCompleted', (data) => {
+      this.logger.debug(`工具执行完成: ${data.toolName}, 耗时: ${data.duration}ms`);
+    });
+    
+    this.monitor.on('executionError', (data) => {
+      this.logger.warn(`工具执行错误: ${data.toolName}, 错误: ${data.error.message}`);
+    });
+    
+    this.monitor.on('executionTimeout', (data) => {
+      this.logger.warn(`工具执行超时: ${data.toolName}, 耗时: ${data.duration}ms`);
+    });
   }
 
   /**
@@ -197,6 +315,11 @@ export class BrowserToolManager extends EventEmitter {
     
     this.logger.info(`执行浏览器工具: ${toolName}`, { callId, args });
     
+    // 开始性能监控
+    const monitorSession = this.monitor.startExecution(toolName, { callId, args });
+    
+    let browserContext = null;
+    
     try {
       // 检查是否已初始化
       if (!this.isInitialized) {
@@ -207,8 +330,8 @@ export class BrowserToolManager extends EventEmitter {
       context.status = TOOL_STATUS.RUNNING;
       await this.securityPolicy.validateOperation(toolName, args);
       
-      // 确保浏览器实例可用
-      await this.ensureBrowserInstance();
+      // 获取浏览器实例
+      browserContext = await this.getBrowserContext();
       
       // 获取工具实例
       const tool = await this.getToolInstance(toolName);
@@ -216,7 +339,7 @@ export class BrowserToolManager extends EventEmitter {
       // 执行工具
       const toolContext = {
         ...context,
-        browser: this.browserInstance,
+        browser: browserContext.browser,
         securityPolicy: this.securityPolicy,
         timeout: args.timeout || this.config.timeout
       };
@@ -234,6 +357,9 @@ export class BrowserToolManager extends EventEmitter {
       
       this.recordExecution(context);
       this.updateMetrics('success', duration);
+      
+      // 完成监控
+      monitorSession.finish(result);
       
       this.emit('toolExecuted', { 
         success: true, 
@@ -255,12 +381,21 @@ export class BrowserToolManager extends EventEmitter {
       
     } catch (error) {
       const duration = Date.now() - startTime;
-      context.status = error.name === 'TimeoutError' ? TOOL_STATUS.TIMEOUT : TOOL_STATUS.FAILED;
+      const isTimeout = error.name === 'TimeoutError';
+      
+      context.status = isTimeout ? TOOL_STATUS.TIMEOUT : TOOL_STATUS.FAILED;
       context.duration = duration;
       context.error = error.message;
       
       this.recordExecution(context);
-      this.updateMetrics(context.status === TOOL_STATUS.TIMEOUT ? 'timeout' : 'error', duration);
+      this.updateMetrics(isTimeout ? 'timeout' : 'error', duration);
+      
+      // 记录监控错误
+      if (isTimeout) {
+        monitorSession.timeout();
+      } else {
+        monitorSession.error(error);
+      }
       
       this.emit('toolExecuted', { 
         success: false, 
@@ -273,6 +408,35 @@ export class BrowserToolManager extends EventEmitter {
       this.logger.error(`工具执行失败: ${toolName}`, { callId, duration, error: error.message });
       
       throw new Error(`浏览器工具执行失败: ${error.message}`);
+      
+    } finally {
+      // 归还浏览器实例到池中
+      if (browserContext && browserContext.returnInstance) {
+        try {
+          await browserContext.returnInstance();
+        } catch (error) {
+          this.logger.warn('归还浏览器实例失败:', error);
+        }
+      }
+    }
+  }
+
+  /**
+   * 获取浏览器上下文
+   * @returns {Promise<Object>} 浏览器上下文
+   * @private
+   */
+  async getBrowserContext() {
+    if (this.instancePool) {
+      // 使用实例池模式
+      return await this.instancePool.getInstance();
+    } else {
+      // 使用传统单实例模式
+      await this.ensureBrowserInstance();
+      return {
+        browser: this.browserInstance,
+        returnInstance: () => Promise.resolve() // 单实例模式不需要归还
+      };
     }
   }
 
@@ -385,7 +549,7 @@ export class BrowserToolManager extends EventEmitter {
       ? this.metrics.totalExecutionTime / this.metrics.toolsExecuted 
       : 0;
     
-    return {
+    const traditionalMetrics = {
       ...this.metrics,
       avgExecutionTime,
       successRate: this.metrics.toolsExecuted > 0 
@@ -393,6 +557,65 @@ export class BrowserToolManager extends EventEmitter {
         : '0%',
       browserMetrics: this.browserInstance ? this.browserInstance.getMetrics() : null
     };
+    
+    // 新的监控指标
+    const monitorStats = this.monitor.getStats();
+    
+    // 实例池指标
+    const instancePoolStats = this.instancePool ? this.instancePool.getStats() : null;
+    
+    return {
+      traditional: traditionalMetrics,
+      monitoring: monitorStats,
+      instancePool: instancePoolStats,
+      combined: {
+        totalExecutions: monitorStats.global.totalExecutions,
+        successRate: (1 - monitorStats.global.errorRate) * 100,
+        avgExecutionTime: monitorStats.global.avgDuration,
+        errorRate: monitorStats.global.errorRate * 100,
+        timeoutRate: monitorStats.global.timeoutRate * 100,
+        uptime: monitorStats.global.uptime
+      }
+    };
+  }
+  
+  /**
+   * 获取工具性能统计
+   * @param {string} toolName - 工具名称（可选）
+   * @returns {Object} 工具性能统计
+   */
+  getToolStats(toolName = null) {
+    return this.monitor.getStats(toolName);
+  }
+  
+  /**
+   * 获取性能趋势数据
+   * @param {string} toolName - 工具名称
+   * @param {number} timeRange - 时间范围(毫秒)
+   * @returns {Object} 趋势数据
+   */
+  getPerformanceTrends(toolName, timeRange) {
+    return this.monitor.getTrends(toolName, timeRange);
+  }
+  
+  /**
+   * 重置监控指标
+   * @param {string} toolName - 工具名称（可选）
+   */
+  resetMetrics(toolName = null) {
+    this.monitor.resetMetrics(toolName);
+    
+    if (!toolName) {
+      // 重置传统指标
+      this.metrics = {
+        toolsExecuted: 0,
+        totalExecutionTime: 0,
+        successCount: 0,
+        errorCount: 0,
+        timeoutCount: 0
+      };
+      this.executionHistory = [];
+    }
   }
 
   /**
@@ -412,9 +635,18 @@ export class BrowserToolManager extends EventEmitter {
     this.logger.info('开始清理浏览器工具管理器资源');
     
     try {
-      if (this.browserInstance) {
+      // 清理实例池或单个浏览器实例
+      if (this.instancePool) {
+        await this.instancePool.destroy();
+        this.instancePool = null;
+      } else if (this.browserInstance) {
         await this.browserInstance.destroy();
         this.browserInstance = null;
+      }
+      
+      // 清理监控器
+      if (this.monitor) {
+        this.monitor.destroy();
       }
       
       this.tools.clear();

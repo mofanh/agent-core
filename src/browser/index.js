@@ -8,6 +8,9 @@
 import { BrowserToolManager } from './tool-manager.js';
 import { BrowserInstance } from './browser-instance.js';
 import { BrowserSecurityPolicy } from './security/sandbox-policy.js';
+import { BrowserInstancePool } from './instance-pool.js';
+import { BrowserToolMonitor } from './monitor.js';
+import { BrowserToolChain } from './tool-chain.js';
 
 // 导入工具类
 import { NavigateTool } from './tools/navigate.js';
@@ -30,6 +33,11 @@ export { EvaluateTool } from './tools/evaluate-tool.js';
 export { BrowserToolManager } from './tool-manager.js';
 export { BrowserInstance } from './browser-instance.js';
 export { BrowserSecurityPolicy } from './security/sandbox-policy.js';
+
+// 导出 Week 3 新增功能
+export { BrowserInstancePool } from './instance-pool.js';
+export { BrowserToolMonitor } from './monitor.js';
+export { BrowserToolChain } from './tool-chain.js';
 
 // 导出工具函数
 export * from './utils/selector-utils.js';
@@ -175,4 +183,61 @@ export function getSupportedTools() {
       }
     }
   ];
+}
+
+/**
+ * 创建浏览器实例池
+ * @param {Object} config - 配置选项
+ * @returns {BrowserInstancePool} 浏览器实例池
+ */
+export function createBrowserInstancePool(config) {
+  return new BrowserInstancePool(config);
+}
+
+/**
+ * 创建浏览器工具监控器
+ * @param {Object} config - 配置选项
+ * @returns {BrowserToolMonitor} 浏览器工具监控器
+ */
+export function createBrowserToolMonitor(config) {
+  return new BrowserToolMonitor(config);
+}
+
+/**
+ * 创建浏览器工具链
+ * @param {BrowserToolManager} toolManager - 工具管理器
+ * @param {Object} config - 配置选项
+ * @returns {BrowserToolChain} 浏览器工具链
+ */
+export function createBrowserToolChain(toolManager, config) {
+  return new BrowserToolChain(toolManager, config);
+}
+
+/**
+ * 创建完整的浏览器工具系统
+ * @param {Object} config - 配置选项
+ * @returns {Object} 完整的浏览器工具系统
+ */
+export function createBrowserToolSystem(config = {}) {
+  const toolManager = new BrowserToolManager(config);
+  const toolChain = new BrowserToolChain(toolManager, config.toolChain);
+  
+  return {
+    toolManager,
+    toolChain,
+    instancePool: toolManager.instancePool,
+    monitor: toolManager.monitor,
+    async initialize() {
+      await toolManager.initialize();
+    },
+    async cleanup() {
+      await toolManager.cleanup();
+    },
+    getStats() {
+      return {
+        toolManager: toolManager.getMetrics(),
+        toolChain: toolChain.getStats()
+      };
+    }
+  };
 }
