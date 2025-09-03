@@ -65,6 +65,203 @@ agent-core/
 - codex-rs/core/mcp_tool_call
 - codex-rs/core/mcp_connection_manager
 
+## 浏览器本地工具集成计划
+
+### 设计目标
+- 参考 codex-rs 的本地工具设计模式，为 agent-core 添加浏览器操作能力
+- 支持页面导航、元素交互、内容提取、截图等核心浏览器自动化功能
+- 提供统一的工具接口，与现有 MCP 工具系统无缝集成
+- 确保安全性和权限控制，避免恶意操作
+
+### 核心组件设计
+
+#### 1. BrowserToolManager (`src/browser/tool-manager.js`)
+浏览器工具管理器，类似于 codex 的本地工具分发逻辑
+- 管理浏览器实例生命周期
+- 工具调用分发和路由
+- 安全策略和权限控制
+- 错误处理和超时管理
+
+#### 2. 本地工具定义
+按照 codex 的本地工具命名规范，定义以下预设工具：
+
+##### `"browser.navigate"` - 页面导航工具
+```javascript
+{
+  name: "browser.navigate",
+  description: "Navigate to a web page and optionally wait for specific elements",
+  parameters: {
+    url: "string",           // 目标URL
+    waitFor: "string",       // 等待的选择器(可选)
+    timeout: "number",       // 超时时间(毫秒，默认30000)
+    viewport: "object"       // 视口配置(可选)
+  }
+}
+```
+
+##### `"browser.click"` - 元素点击工具
+```javascript
+{
+  name: "browser.click",
+  description: "Click on an element specified by selector",
+  parameters: {
+    selector: "string",      // CSS选择器或XPath
+    waitForSelector: "boolean", // 是否等待元素出现
+    timeout: "number",       // 超时时间
+    button: "string"         // 鼠标按键(left/right/middle)
+  }
+}
+```
+
+##### `"browser.extract"` - 内容提取工具
+```javascript
+{
+  name: "browser.extract",
+  description: "Extract content from the current page",
+  parameters: {
+    selector: "string",      // 提取内容的选择器
+    attribute: "string",     // 提取的属性(text/html/src等)
+    multiple: "boolean",     // 是否提取多个元素
+    format: "string"         // 输出格式(text/json/html)
+  }
+}
+```
+
+##### `"browser.type"` - 文本输入工具
+```javascript
+{
+  name: "browser.type",
+  description: "Type text into an input element",
+  parameters: {
+    selector: "string",      // 输入框选择器
+    text: "string",          // 输入的文本
+    clear: "boolean",        // 是否先清空
+    delay: "number"          // 输入延迟(毫秒)
+  }
+}
+```
+
+##### `"browser.screenshot"` - 截图工具
+```javascript
+{
+  name: "browser.screenshot",
+  description: "Take a screenshot of the current page or specific element",
+  parameters: {
+    selector: "string",      // 元素选择器(可选，默认全页面)
+    format: "string",        // 图片格式(png/jpeg)
+    quality: "number",       // 图片质量(1-100)
+    fullPage: "boolean"      // 是否全页面截图
+  }
+}
+```
+
+##### `"browser.evaluate"` - 脚本执行工具
+```javascript
+{
+  name: "browser.evaluate",
+  description: "Execute JavaScript code in the browser context",
+  parameters: {
+    code: "string",          // 要执行的JavaScript代码
+    args: "array",           // 传递给代码的参数
+    timeout: "number",       // 执行超时时间
+    returnType: "string"     // 返回值类型(json/text/binary)
+  }
+}
+```
+
+### 实现架构
+
+#### 目录结构
+```
+src/browser/
+├── index.js                 # 浏览器模块主入口
+├── tool-manager.js          # 工具管理器
+├── browser-instance.js      # 浏览器实例管理
+├── tools/                   # 工具实现
+│   ├── navigate.js          # 导航工具
+│   ├── click.js             # 点击工具
+│   ├── extract.js           # 提取工具
+│   ├── type.js              # 输入工具
+│   ├── screenshot.js        # 截图工具
+│   └── evaluate.js          # 脚本执行工具
+├── security/                # 安全策略
+│   ├── sandbox-policy.js    # 沙箱策略
+│   └── url-validator.js     # URL验证
+└── utils/                   # 工具函数
+    ├── selector-utils.js    # 选择器工具
+    └── wait-utils.js        # 等待工具
+```
+
+#### 集成到现有系统
+1. **与 MCPToolSystem 集成**：将浏览器工具注册到现有工具系统
+2. **与 AgentCore 集成**：在主类中添加浏览器工具初始化
+3. **配置系统扩展**：支持浏览器工具的配置选项
+
+### 开发步骤
+
+#### Phase 1: 基础架构 (Week 1)
+- [ ] 创建浏览器工具管理器基础框架
+- [ ] 实现浏览器实例生命周期管理
+- [ ] 设计工具接口规范和参数验证
+- [ ] 集成到现有的工具系统
+
+#### Phase 2: 核心工具实现 (Week 2)
+- [ ] 实现 `browser.navigate` 导航工具
+- [ ] 实现 `browser.click` 点击工具  
+- [ ] 实现 `browser.extract` 内容提取工具
+- [ ] 实现基础的错误处理和超时机制
+
+#### Phase 3: 高级功能 (Week 3)
+- [ ] 实现 `browser.type` 文本输入工具
+- [ ] 实现 `browser.screenshot` 截图工具
+- [ ] 实现 `browser.evaluate` 脚本执行工具
+- [ ] 添加安全策略和权限控制
+
+#### Phase 4: 完善和优化 (Week 4)
+- [ ] 添加详细的参数验证和错误处理
+- [ ] 实现工具链组合和批量操作
+- [ ] 性能优化和内存管理
+- [ ] 完善文档和使用示例
+
+### 安全考虑
+- **URL白名单**：限制可访问的域名范围
+- **脚本沙箱**：限制可执行的JavaScript代码
+- **资源限制**：控制内存使用和执行时间
+- **权限验证**：用户授权和操作审计
+
+### 技术依赖
+- **puppeteer** 或 **playwright**：浏览器自动化引擎
+- **现有 MCPToolSystem**：工具注册和管理
+- **现有 Logger**：日志记录
+- **现有 EventEmitter**：事件处理
+
+### 配置示例
+```javascript
+const agentConfig = {
+  browser: {
+    enabled: true,
+    engine: 'puppeteer',        // puppeteer | playwright
+    headless: true,             // 是否无头模式
+    timeout: 30000,             // 默认超时时间
+    viewport: {                 // 默认视口
+      width: 1920,
+      height: 1080
+    },
+    security: {
+      allowedDomains: ['*'],    // 允许的域名
+      blockResources: ['image', 'font'], // 阻止的资源类型
+      maxMemory: '512MB'        // 最大内存使用
+    }
+  }
+};
+```
+
+### 测试策略
+- **单元测试**：每个工具的功能测试
+- **集成测试**：与 AgentCore 的集成测试
+- **安全测试**：恶意代码和URL的防护测试
+- **性能测试**：内存泄漏和执行效率测试
+
 ## 核心模块详解
 
 ### 1. AgentCore 主类 (`src/index.js`)
@@ -830,6 +1027,386 @@ try {
 } catch (error) {
   console.error('LLM 请求失败:', error);
   // 实现降级策略
+}
+```
+
+## 浏览器工具详细实现方案
+
+### 实现细节
+
+#### 1. 工具注册机制
+参考 codex 的工具分发逻辑，在 AgentCore 中添加工具路由：
+
+```javascript
+// src/index.js - AgentCore 类扩展
+class AgentCore extends EventEmitter {
+  async handleToolCall(toolName, arguments, callId) {
+    // 本地工具优先匹配（类似 codex 的设计）
+    switch (toolName) {
+      case 'browser.navigate':
+      case 'browser.click':
+      case 'browser.extract':
+      case 'browser.type':
+      case 'browser.screenshot':
+      case 'browser.evaluate':
+        return await this.browserToolManager.executeLocalTool(
+          toolName, arguments, callId
+        );
+      
+      default:
+        // 尝试 MCP 工具解析（类似 codex 的 mcp_connection_manager.parse_tool_name）
+        const mcpResult = this.mcpSystem.parseToolName(toolName);
+        if (mcpResult) {
+          return await this.mcpSystem.callTool(toolName, arguments);
+        }
+        
+        // 未知工具
+        throw new Error(`unsupported tool: ${toolName}`);
+    }
+  }
+}
+```
+
+#### 2. 浏览器工具管理器核心实现
+
+```javascript
+// src/browser/tool-manager.js
+export class BrowserToolManager extends EventEmitter {
+  constructor(config) {
+    super();
+    this.config = config;
+    this.browserInstance = null;
+    this.tools = new Map();
+    this.securityPolicy = new BrowserSecurityPolicy(config.security);
+    
+    this.registerDefaultTools();
+  }
+  
+  registerDefaultTools() {
+    // 注册所有本地浏览器工具
+    this.tools.set('browser.navigate', new NavigateTool());
+    this.tools.set('browser.click', new ClickTool());
+    this.tools.set('browser.extract', new ExtractTool());
+    this.tools.set('browser.type', new TypeTool());
+    this.tools.set('browser.screenshot', new ScreenshotTool());
+    this.tools.set('browser.evaluate', new EvaluateTool());
+  }
+  
+  async executeLocalTool(toolName, args, callId) {
+    const tool = this.tools.get(toolName);
+    if (!tool) {
+      throw new Error(`Unknown browser tool: ${toolName}`);
+    }
+    
+    // 安全验证
+    await this.securityPolicy.validateOperation(toolName, args);
+    
+    // 确保浏览器实例可用
+    await this.ensureBrowserInstance();
+    
+    // 执行工具
+    const context = {
+      toolName,
+      args,
+      callId,
+      startTime: new Date(),
+      browser: this.browserInstance
+    };
+    
+    try {
+      const result = await tool.execute(context);
+      this.emit('toolExecuted', { success: true, context, result });
+      return result;
+    } catch (error) {
+      this.emit('toolExecuted', { success: false, context, error });
+      throw error;
+    }
+  }
+}
+```
+
+#### 3. 具体工具实现示例
+
+```javascript
+// src/browser/tools/navigate.js
+export class NavigateTool {
+  async execute(context) {
+    const { args, browser } = context;
+    const { url, waitFor, timeout = 30000, viewport } = args;
+    
+    const page = await browser.newPage();
+    
+    if (viewport) {
+      await page.setViewport(viewport);
+    }
+    
+    // 导航到页面
+    const response = await page.goto(url, {
+      waitUntil: 'networkidle2',
+      timeout
+    });
+    
+    // 等待特定元素（如果指定）
+    if (waitFor) {
+      await page.waitForSelector(waitFor, { timeout });
+    }
+    
+    return {
+      success: true,
+      status: response.status(),
+      url: page.url(),
+      title: await page.title()
+    };
+  }
+}
+
+// src/browser/tools/extract.js
+export class ExtractTool {
+  async execute(context) {
+    const { args, browser } = context;
+    const { selector, attribute = 'text', multiple = false, format = 'text' } = args;
+    
+    const page = await browser.currentPage();
+    
+    let result;
+    if (multiple) {
+      result = await page.$$eval(selector, (elements, attr) => {
+        return elements.map(el => {
+          switch(attr) {
+            case 'text': return el.textContent.trim();
+            case 'html': return el.innerHTML;
+            case 'outerHTML': return el.outerHTML;
+            default: return el.getAttribute(attr);
+          }
+        });
+      }, attribute);
+    } else {
+      result = await page.$eval(selector, (el, attr) => {
+        switch(attr) {
+          case 'text': return el.textContent.trim();
+          case 'html': return el.innerHTML;
+          case 'outerHTML': return el.outerHTML;
+          default: return el.getAttribute(attr);
+        }
+      }, attribute);
+    }
+    
+    return {
+      success: true,
+      data: result,
+      format,
+      selector
+    };
+  }
+}
+```
+
+### 配置集成
+
+#### 在 AgentCore 中添加浏览器配置支持
+
+```javascript
+// src/index.js - 扩展初始化逻辑
+async initialize() {
+  // ... 现有初始化代码 ...
+  
+  // 如果配置中包含浏览器设置，初始化浏览器工具
+  if (this.config.browser && this.config.browser.enabled) {
+    const { BrowserToolManager } = await import('./browser/tool-manager.js');
+    this.browserToolManager = new BrowserToolManager(this.config.browser);
+    
+    // 注册浏览器工具到工具系统
+    if (this.mcpSystem) {
+      this.mcpSystem.registerLocalTools(this.browserToolManager.getToolDefinitions());
+    }
+  }
+}
+```
+
+### 安全策略实现
+
+```javascript
+// src/browser/security/sandbox-policy.js
+export class BrowserSecurityPolicy {
+  constructor(config) {
+    this.allowedDomains = config.allowedDomains || ['*'];
+    this.blockedResources = config.blockResources || [];
+    this.maxExecutionTime = config.maxExecutionTime || 30000;
+    this.maxMemory = config.maxMemory || '512MB';
+  }
+  
+  async validateOperation(toolName, args) {
+    // URL 验证
+    if (args.url) {
+      if (!this.isAllowedDomain(args.url)) {
+        throw new Error(`Domain not allowed: ${new URL(args.url).hostname}`);
+      }
+    }
+    
+    // 脚本执行验证
+    if (toolName === 'browser.evaluate') {
+      this.validateScript(args.code);
+    }
+    
+    return true;
+  }
+  
+  isAllowedDomain(url) {
+    if (this.allowedDomains.includes('*')) return true;
+    
+    const hostname = new URL(url).hostname;
+    return this.allowedDomains.some(domain => {
+      if (domain.startsWith('*.')) {
+        return hostname.endsWith(domain.slice(2));
+      }
+      return hostname === domain;
+    });
+  }
+  
+  validateScript(code) {
+    // 检查危险函数调用
+    const dangerousPatterns = [
+      /eval\s*\(/,
+      /Function\s*\(/,
+      /document\.write/,
+      /window\.location\s*=/,
+      /XMLHttpRequest/,
+      /fetch\s*\(/
+    ];
+    
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(code)) {
+        throw new Error('Script contains potentially dangerous operations');
+      }
+    }
+  }
+}
+```
+
+### 时间规划调整
+
+#### Week 1: 基础架构 (2024-09-03 to 2024-09-10)
+- [x] 完成设计方案和文档
+- [x] 创建目录结构和基础文件
+- [x] 实现 BrowserToolManager 框架
+- [x] 实现 BrowserInstance 浏览器实例管理
+- [x] 实现 BrowserSecurityPolicy 安全策略
+- [x] 集成到 AgentCore 主类
+- [x] 添加基础配置支持
+
+**Day 1 完成进度 (2024-09-03):**
+✅ 创建完整的浏览器模块目录结构
+✅ 实现浏览器模块主入口 (`src/browser/index.js`)
+✅ 实现浏览器实例管理器 (`src/browser/browser-instance.js`)
+✅ 实现安全策略模块 (`src/browser/security/sandbox-policy.js`) 
+✅ 实现浏览器工具管理器核心框架 (`src/browser/tool-manager.js`)
+✅ 集成到 AgentCore 主类，添加工具调用分发逻辑
+✅ 更新健康检查和能力查询接口
+✅ 添加浏览器工具的导出和配置支持
+
+**核心设计特点:**
+- 参考 codex-rs 的本地工具分发逻辑，采用预定义工具名称
+- 支持 Puppeteer 和 Playwright 两种引擎
+- 完整的安全策略：URL白名单、脚本验证、资源控制
+- 工具延迟加载机制，提高启动性能
+- 完善的事件系统和性能监控
+- 类型安全的参数验证和错误处理
+- 与现有 MCP 工具系统无缝集成
+
+**集成到 AgentCore 的关键实现:**
+- 新增 `handleToolCall()` 方法，参考 codex 的工具分发逻辑
+- 本地浏览器工具优先匹配，然后尝试 MCP 工具
+- 支持新的任务类型：`browser_tool` 和 `tool_call`
+- 在健康检查中包含浏览器工具状态
+- 在能力查询中列出可用的浏览器工具
+- 正确的资源清理和关闭流程
+
+**下一步计划 (Day 2):**
+🎯 开始 Week 2 的核心工具实现
+- [ ] 实现 NavigateTool (导航工具)
+- [ ] 实现 ClickTool (点击工具)  
+- [ ] 实现 ExtractTool (内容提取工具)
+- [ ] 创建工具基类和通用工具函数
+- [ ] 编写基础单元测试
+
+**实现思路:**
+1. 先创建抽象的 BaseBrowserTool 类，定义工具接口规范
+2. 实现 selector-utils.js 和 wait-utils.js 工具函数
+3. 按优先级实现核心工具：导航 -> 提取 -> 点击
+4. 每个工具都要有完整的参数验证和错误处理
+5. 添加详细的日志记录和性能监控
+
+#### Week 2: 核心工具 (2024-09-10 to 2024-09-17)  
+✅ **Day 1 已完成 (2024-12-20)**:
+- 实现 BaseBrowserTool 基础工具类
+- 创建 selector-utils.js 选择器工具库
+- 实现 NavigateTool (页面导航工具)
+- 实现 ClickTool (元素点击工具)  
+- 实现 ExtractTool (内容提取工具)
+- 更新工具管理器支持新工具
+
+📝 **当前状态**: 
+- 核心浏览器工具框架已完成
+- 3个基础工具(导航、点击、提取)已实现
+- 选择器工具库支持CSS/XPath自动检测
+- 工具管理器已集成新实现的工具
+
+⏳ **待完成**:
+- [ ] 实现 TypeTool (文本输入)
+- [ ] 实现 ScreenshotTool (截图)  
+- [ ] 实现 EvaluateTool (脚本执行)
+- [ ] 添加完整的参数验证
+- [ ] 编写单元测试
+
+#### Week 3: 高级工具 (2024-09-17 to 2024-09-24)
+- [ ] 实现 TypeTool (文本输入)
+- [ ] 实现 ScreenshotTool (截图)
+- [ ] 实现 EvaluateTool (脚本执行)
+- [ ] 实现安全策略和权限控制
+- [ ] 性能优化和内存管理
+
+#### Week 4: 完善优化 (2024-09-24 to 2024-10-01)
+- [ ] 集成测试和端到端测试
+- [ ] 文档完善和使用示例
+- [ ] 性能测试和优化
+- [ ] 代码审查和重构
+- [ ] 发布准备
+
+### 使用示例
+
+```javascript
+// 创建支持浏览器工具的 Agent
+const agent = new AgentCore({
+  browser: {
+    enabled: true,
+    engine: 'puppeteer',
+    headless: true,
+    security: {
+      allowedDomains: ['*.github.com', 'stackoverflow.com'],
+      blockResources: ['image', 'font']
+    }
+  }
+});
+
+await agent.initialize();
+
+// 执行浏览器工具调用
+const result = await agent.handleToolCall('browser.navigate', {
+  url: 'https://github.com',
+  waitFor: '.Header'
+});
+
+const content = await agent.handleToolCall('browser.extract', {
+  selector: '.Header-link',
+  attribute: 'text',
+  multiple: true
+});
+
+const screenshot = await agent.handleToolCall('browser.screenshot', {
+  format: 'png',
+  fullPage: false
+});
+```
   return fallbackResponse;
 }
 ```
@@ -1027,3 +1604,78 @@ try {
 - 监控流处理性能指标
 
 ---
+
+## 🎯 最新开发状态 (2024-12-20)
+
+### ✅ 已完成 - Week 2 Day 1: 核心浏览器工具实现
+
+**架构成果**:
+1. **BaseBrowserTool 基础框架** (`src/browser/tools/base-tool.js`)
+   - 统一的工具执行生命周期管理
+   - 标准化的参数验证和结果格式化
+   - 错误处理和性能监控集成
+   - 元素交互的通用工具函数
+
+2. **选择器工具库** (`src/browser/utils/selector-utils.js`)
+   - CSS/XPath选择器自动检测和验证
+   - 常用选择器模式库 (byText, byAttribute, byClass等)
+   - 灵活的选择器构建器
+   - 复合选择器组合功能
+
+**核心工具实现**:
+1. **NavigateTool** - 页面导航工具
+   - 支持HTTP/HTTPS URL导航
+   - 可配置的等待策略 (选择器/网络空闲)
+   - 自定义HTTP头部和User-Agent
+   - 完整的页面信息收集
+
+2. **ClickTool** - 元素点击工具  
+   - CSS和XPath选择器支持
+   - 多种点击类型 (左键/右键/中键/双击)
+   - 按键修饰符支持 (Ctrl/Alt/Shift/Meta)
+   - 元素可见性和可点击性验证
+   - 智能滚动和坐标计算
+
+3. **ExtractTool** - 内容提取工具
+   - 灵活的提取类型 (文本/HTML/属性/全部)
+   - 支持单个和批量元素提取
+   - 自动分页数据抓取
+   - 文本标准化和清理选项
+   - 元数据收集功能
+
+**系统集成**:
+- 更新了 `BrowserToolManager` 的工具加载器路径
+- 完善了 `src/browser/index.js` 的导出结构
+- 保持了与现有 AgentCore 架构的兼容性
+
+**开发辅助**:
+- 创建了完整的演示示例 (`examples/browser-tools-demo.js`)
+- 编写了基础单元测试 (`test/browser-tools.test.js`)
+- 完善了使用文档 (`docs/browser-tools.md`)
+
+### 🔄 技术亮点
+
+1. **参考 Codex 架构**: 采用了 codex-rs 的本地工具优先级分发模式
+2. **安全性设计**: 内置参数验证、域名限制、资源控制
+3. **性能优化**: 延迟加载、连接池、资源清理
+4. **可扩展性**: 基于 BaseBrowserTool 可快速添加新工具
+5. **健壮性**: 完整的错误处理和超时控制
+
+### ⏭️ 下一步计划
+
+**Week 2 剩余任务**:
+- [ ] 实现 TypeTool (文本输入工具)
+- [ ] 实现 ScreenshotTool (屏幕截图工具)
+- [ ] 实现 EvaluateTool (JavaScript执行工具)
+- [ ] 完善单元测试覆盖率
+- [ ] 性能测试和优化
+
+**核心技术栈**:
+- **浏览器引擎**: Puppeteer/Playwright
+- **安全策略**: 域名白名单、资源限制
+- **工具模式**: 参考 codex-rs 本地工具架构
+- **集成方式**: 无缝集成到 AgentCore 框架
+
+---
+
+*开发进度: 核心框架完成，3个基础工具已实现，正在按计划推进Week 2任务*

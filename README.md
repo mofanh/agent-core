@@ -3,51 +3,112 @@
 [![npm version](https://badge.fury.io/js/@mofanh%2Fagent-core.svg)](https://badge.fury.io/js/@mofanh%2Fagent-core)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org)
 
-@mofanh/agent-core 是一个现代化的智能代理框架，提供统一的 LLM 接口、强大的 Prompt 构建系统和灵活的工作流编排能力。
+@mofanh/agent-core 是一个现代化的智能代理框架，提供统一的 LLM 接口、完整的 MCP (Model Context Protocol) 支持和强大的工作流编排能力。
 
-## 特性
+## ✨ 特性
 
-- 🤖 **统一 LLM 接口**: 支持多种 LLM 提供商（Spark、OpenAI 等）
-- 📝 **强大的 Prompt 系统**: 模板化、变量注入、条件逻辑
-- � **工作流编排**: 支持复杂的多步骤任务流
+- 🤖 **统一 LLM 接口**: 支持多种 LLM 提供商（OpenAI、Anthropic 等）
+- � **完整 MCP 支持**: 真正的外部服务调用能力，支持 stdio/HTTP 传输
+- �📝 **强大的 Prompt 系统**: 模板化、变量注入、条件逻辑
+- 🔄 **工作流编排**: 支持复杂的多步骤任务流和混合 LLM+MCP 任务
 - 🌊 **流式处理**: 原生支持流式响应处理
 - 🔧 **可扩展架构**: 插件化设计，易于扩展
-- 📊 **完整监控**: 内置日志和健康检查
-- 🎯 **类型安全**: 完整的 TypeScript 支持
+- 📊 **完整监控**: 内置日志、健康检查和性能指标
+- 🎯 **类型安全**: 完整的 JSDoc 类型支持
+- ⚖️ **负载均衡**: 多种连接池和负载均衡策略
+- 🛡️ **容错机制**: 自动重连、故障转移和错误恢复
 
-## 安装
+## 📦 安装
 
 ```bash
 npm install @mofanh/agent-core
-```bash
-npm install agent-core
 # 或
-yarn add agent-core
+yarn add @mofanh/agent-core
 # 或
-pnpm add agent-core
+pnpm add @mofanh/agent-core
 ```
 
-## 快速开始
+## 🚀 快速开始
 
-### 基本使用
+### 基础代理使用
 
-```typescript
-import { AgentCore, quickStart } from 'agent-core';
+```javascript
+import { AgentCore } from 'agent-core';
 
-// 手动创建代理
 const agent = new AgentCore({
   llmProvider: {
     type: 'openai',
     apiKey: process.env.OPENAI_API_KEY,
     model: 'gpt-4'
-  },
-  mcpServers: ['dom', 'page']
+  }
 });
 
 await agent.initialize();
 const result = await agent.execute({
-  task: 'analyze_page',
-  target: 'https://example.com'
+  task: 'chat',
+  messages: [
+    { role: 'user', content: '你好，介绍一下你自己' }
+  ]
+});
+```
+
+### MCP 集成使用
+
+```javascript
+import { createMCPAgent, createSmartAgent } from 'agent-core';
+
+// 创建 MCP 代理
+const mcpAgent = await createMCPAgent({
+  servers: [
+    { name: 'web', transport: 'stdio', command: 'web-mcp-server' },
+    { name: 'file', transport: 'http', url: 'http://localhost:3000' }
+  ]
+});
+
+// 调用外部工具
+const result = await mcpAgent.callTool('fetch_page', { 
+  url: 'https://example.com' 
+});
+
+// 创建智能代理（LLM + MCP）
+const smartAgent = await createSmartAgent({
+  llm: {
+    provider: 'openai',
+    options: { model: 'gpt-4', apiKey: process.env.OPENAI_API_KEY }
+  },
+  mcp: {
+    servers: [
+      { name: 'web', transport: 'stdio', command: 'web-mcp-server' }
+    ]
+  }
+});
+
+// 执行混合任务
+const analysis = await smartAgent.execute({
+  type: 'hybrid',
+  initialPrompt: {
+    messages: [{ role: 'user', content: '分析网站 https://example.com 的内容' }]
+  },
+  workflow: [
+    {
+      type: 'mcp_tool',
+      name: 'fetchPage',
+      toolName: 'fetch_page',
+      args: { url: 'https://example.com' }
+    },
+    {
+      type: 'llm',
+      name: 'analyze',
+      prompt: (data) => ({
+        messages: [
+          { role: 'system', content: '你是一个网页内容分析专家。' },
+          { role: 'user', content: `请分析这个网页内容：${data.fetchPage?.content}` }
+        ]
+      })
+    }
+  ]
+});
+```
 });
 ```
 

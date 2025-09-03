@@ -4,6 +4,11 @@
  * @fileoverview 提供完整的 MCP 协议支持，包括客户端、连接管理和工具系统
  */
 
+// 导入主要类
+import { MCPClient } from './client.js';
+import { MCPConnectionManager, CONNECTION_STATUS } from './connection-manager.js';
+import { MCPToolSystem } from './tool-system.js';
+
 // 导出类型定义
 export {
   MCP_SCHEMA_VERSION,
@@ -52,9 +57,9 @@ export function createMCPConnectionManager(config) {
  * @param {Array} config.servers - MCP服务器配置列表
  * @param {Object} [config.manager] - 连接管理器配置
  * @param {Object} [config.toolSystem] - 工具系统配置
- * @returns {Promise<Object>} 包含connectionManager和toolSystem的对象
+ * @returns {Object} 包含connectionManager和toolSystem的对象
  */
-export async function createMCPSystem(config) {
+export function createMCPSystem(config) {
   const { servers, manager = {}, toolSystem = {} } = config;
   
   // 创建连接管理器
@@ -69,20 +74,22 @@ export async function createMCPSystem(config) {
     ...toolSystem
   });
   
-  // 初始化系统
-  await connectionManager.initialize();
-  await tools.initialize();
-  
   return {
     connectionManager,
     toolSystem: tools,
+    
+    // 初始化方法
+    async initialize() {
+      await connectionManager.initialize();
+      await tools.initialize();
+    },
     
     // 便捷方法
     async callTool(toolName, args, options) {
       return await tools.callTool(toolName, args, options);
     },
     
-    async getTools() {
+    getTools() {
       return tools.getTools();
     },
     
@@ -91,8 +98,13 @@ export async function createMCPSystem(config) {
     },
     
     getStatus() {
+      const connectionStatus = connectionManager.getStatus();
+      
       return {
-        connections: connectionManager.getStatus(),
+        healthy: connectionStatus.readyConnections > 0,
+        connections: connectionStatus.connections,
+        totalConnections: connectionStatus.totalConnections,
+        readyConnections: connectionStatus.readyConnections,
         tools: {
           totalTools: tools.getTools().length,
           metrics: tools.getMetrics()
