@@ -68,9 +68,9 @@ export class BrowserToolManager extends EventEmitter {
       [BROWSER_TOOLS.NAVIGATE]: () => import('./tools/navigate-tool.js').then(m => m.NavigateTool),
       [BROWSER_TOOLS.CLICK]: () => import('./tools/click-tool.js').then(m => m.ClickTool),
       [BROWSER_TOOLS.EXTRACT]: () => import('./tools/extract-tool.js').then(m => m.ExtractTool),
-      [BROWSER_TOOLS.TYPE]: () => import('./tools/type.js').then(m => m.TypeTool),
-      [BROWSER_TOOLS.SCREENSHOT]: () => import('./tools/screenshot.js').then(m => m.ScreenshotTool),
-      [BROWSER_TOOLS.EVALUATE]: () => import('./tools/evaluate.js').then(m => m.EvaluateTool)
+      [BROWSER_TOOLS.TYPE]: () => import('./tools/type-tool.js').then(m => m.TypeTool),
+      [BROWSER_TOOLS.SCREENSHOT]: () => import('./tools/screenshot-tool.js').then(m => m.ScreenshotTool),
+      [BROWSER_TOOLS.EVALUATE]: () => import('./tools/evaluate-tool.js').then(m => m.EvaluateTool)
     };
     
     this.logger.info(`已注册 ${Object.keys(this.toolLoaders).length} 个浏览器工具`);

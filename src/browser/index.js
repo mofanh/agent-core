@@ -22,6 +22,9 @@ export { BaseBrowserTool } from './tools/base-tool.js';
 export { NavigateTool } from './tools/navigate-tool.js';
 export { ClickTool } from './tools/click-tool.js';
 export { ExtractTool } from './tools/extract-tool.js';
+export { TypeTool } from './tools/type-tool.js';
+export { ScreenshotTool } from './tools/screenshot-tool.js';
+export { EvaluateTool } from './tools/evaluate-tool.js';
 
 // 导出工具管理器和实例
 export { BrowserToolManager } from './tool-manager.js';

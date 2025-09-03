@@ -10,6 +10,9 @@ import {
   NavigateTool, 
   ClickTool, 
   ExtractTool,
+  TypeTool,
+  ScreenshotTool,
+  EvaluateTool,
   BrowserInstance,
   BrowserSecurityPolicy 
 } from '../src/browser/index.js';
@@ -142,6 +145,107 @@ describe('Browser Tools Basic Tests', () => {
     });
   });
 
+  describe('TypeTool', () => {
+    test('should create TypeTool instance', () => {
+      const tool = new TypeTool(browserInstance, securityPolicy);
+      expect(tool).toBeInstanceOf(TypeTool);
+      expect(tool.name).toBe('type');
+    });
+
+    test('should validate input parameters', () => {
+      const tool = new TypeTool(browserInstance, securityPolicy);
+      
+      // 有效参数
+      const validParams = { selector: 'input[type="text"]', text: 'Hello World' };
+      const validResult = tool.validateParameters(validParams);
+      expect(validResult.valid).toBe(true);
+
+      // 缺少文本
+      const invalidParams = { selector: 'input[type="text"]' };
+      const invalidResult = tool.validateParameters(invalidParams);
+      expect(invalidResult.valid).toBe(false);
+    });
+
+    test('should detect input elements correctly', () => {
+      const tool = new TypeTool(browserInstance, securityPolicy);
+      
+      // 文本输入框
+      expect(tool.isInputElement({ tagName: 'input', type: 'text' })).toBe(true);
+      expect(tool.isInputElement({ tagName: 'textarea' })).toBe(true);
+      
+      // 非输入元素
+      expect(tool.isInputElement({ tagName: 'div' })).toBe(false);
+      expect(tool.isInputElement({ tagName: 'button' })).toBe(false);
+    });
+  });
+
+  describe('ScreenshotTool', () => {
+    test('should create ScreenshotTool instance', () => {
+      const tool = new ScreenshotTool(browserInstance, securityPolicy);
+      expect(tool).toBeInstanceOf(ScreenshotTool);
+      expect(tool.name).toBe('screenshot');
+    });
+
+    test('should validate screenshot parameters', () => {
+      const tool = new ScreenshotTool(browserInstance, securityPolicy);
+      
+      // 视口截图
+      const viewportParams = { type: 'viewport', format: 'png' };
+      const viewportResult = tool.validateParameters(viewportParams);
+      expect(viewportResult.valid).toBe(true);
+
+      // 元素截图需要选择器
+      const elementParamsInvalid = { type: 'element', format: 'png' };
+      const elementInvalidResult = tool.validateParameters(elementParamsInvalid);
+      expect(elementInvalidResult.valid).toBe(false);
+
+      // 元素截图有效参数
+      const elementParamsValid = { type: 'element', selector: '.target', format: 'png' };
+      const elementValidResult = tool.validateParameters(elementParamsValid);
+      expect(elementValidResult.valid).toBe(true);
+    });
+  });
+
+  describe('EvaluateTool', () => {
+    test('should create EvaluateTool instance', () => {
+      const tool = new EvaluateTool(browserInstance, securityPolicy);
+      expect(tool).toBeInstanceOf(EvaluateTool);
+      expect(tool.name).toBe('evaluate');
+    });
+
+    test('should validate script security', () => {
+      const tool = new EvaluateTool(browserInstance, securityPolicy);
+      
+      // 安全脚本
+      const safeScript = 'return document.title;';
+      const safeResult = tool.validateScriptSecurity(safeScript, false);
+      expect(safeResult.valid).toBe(true);
+
+      // 危险脚本
+      const dangerousScript = 'eval("malicious code");';
+      const dangerousResult = tool.validateScriptSecurity(dangerousScript, false);
+      expect(dangerousResult.valid).toBe(false);
+
+      // 允许危险API的情况
+      const allowedResult = tool.validateScriptSecurity(dangerousScript, true);
+      expect(allowedResult.valid).toBe(false); // eval 仍然被恶意模式阻止
+    });
+
+    test('should validate parameters correctly', () => {
+      const tool = new EvaluateTool(browserInstance, securityPolicy);
+      
+      // 有效参数
+      const validParams = { script: 'return "hello";' };
+      const validResult = tool.validateParameters(validParams);
+      expect(validResult.valid).toBe(true);
+
+      // 空脚本
+      const invalidParams = { script: '' };
+      const invalidResult = tool.validateParameters(invalidParams);
+      expect(invalidResult.valid).toBe(false);
+    });
+  });
+
   describe('Selector Utils', () => {
     test('should detect selector types correctly', async () => {
       const { detectSelectorType } = await import('../src/browser/utils/selector-utils.js');
@@ -216,6 +320,9 @@ describe('Browser Tools Basic Tests', () => {
       expect(capabilities.browser.tools).toContain('browser.navigate');
       expect(capabilities.browser.tools).toContain('browser.click');
       expect(capabilities.browser.tools).toContain('browser.extract');
+      expect(capabilities.browser.tools).toContain('browser.type');
+      expect(capabilities.browser.tools).toContain('browser.screenshot');
+      expect(capabilities.browser.tools).toContain('browser.evaluate');
     });
 
     test('should handle browser tool calls', async () => {

@@ -109,14 +109,75 @@ async function demoBrowserTools() {
 
     logger.info('搜索框信息:', searchBoxInfo.data?.results);
 
-    // 7. 获取浏览器健康状态
+    // 7. 测试文本输入工具
+    logger.info('\n⌨️ 测试5: 文本输入');
+    try {
+      // 先导航到一个有输入框的页面
+      await agent.handleToolCall('browser.navigate', {
+        url: 'data:text/html,<html><body><input type="text" id="test-input" placeholder="测试输入"><textarea id="test-textarea"></textarea></body></html>',
+        timeout: 5000
+      });
+
+      const typeResult = await agent.handleToolCall('browser.type', {
+        selector: '#test-input',
+        text: 'Hello Browser Tools!',
+        clearBefore: true,
+        validateInput: true
+      });
+
+      logger.info('文本输入结果:', {
+        success: typeResult.success,
+        beforeValue: typeResult.data?.beforeValue,
+        afterValue: typeResult.data?.afterValue,
+        validation: typeResult.data?.validation
+      });
+    } catch (error) {
+      logger.warn('文本输入测试失败:', error.message);
+    }
+
+    // 8. 测试截图工具
+    logger.info('\n📸 测试6: 屏幕截图');
+    try {
+      const screenshotResult = await agent.handleToolCall('browser.screenshot', {
+        type: 'viewport',
+        format: 'png'
+      });
+
+      logger.info('截图结果:', {
+        success: screenshotResult.success,
+        format: screenshotResult.data?.format,
+        hasDataUrl: !!screenshotResult.data?.dataUrl,
+        dataSize: screenshotResult.data?.dataUrl ? screenshotResult.data.dataUrl.length : 0
+      });
+    } catch (error) {
+      logger.warn('截图测试失败:', error.message);
+    }
+
+    // 9. 测试JavaScript执行工具
+    logger.info('\n🔧 测试7: JavaScript执行');
+    try {
+      const evalResult = await agent.handleToolCall('browser.evaluate', {
+        script: 'return { title: document.title, url: window.location.href, time: new Date().toISOString() };',
+        sandbox: true,
+        timeout: 3000
+      });
+
+      logger.info('JavaScript执行结果:', {
+        success: evalResult.success,
+        result: evalResult.data?.result
+      });
+    } catch (error) {
+      logger.warn('JavaScript执行测试失败:', error.message);
+    }
+
+    // 10. 获取浏览器健康状态
     const healthStatus = await agent.getBrowserHealth();
     logger.info('\n💻 浏览器健康状态:', healthStatus);
 
   } catch (error) {
     logger.error('演示过程中发生错误:', error);
   } finally {
-    // 8. 清理资源
+    // 11. 清理资源
     await agent.shutdown();
     logger.info('\n✅ 浏览器工具演示完成，资源已清理');
   }
