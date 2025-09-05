@@ -39,6 +39,15 @@ export { BrowserInstancePool } from './instance-pool.js';
 export { BrowserToolMonitor } from './monitor.js';
 export { BrowserToolChain } from './tool-chain.js';
 
+// 导出 Week 4 安全功能
+export {
+  BrowserSecurityManager,
+  createBrowserSecurityManager,
+  SECURITY_LEVELS,
+  RISK_LEVELS,
+  DEFAULT_SECURITY_CONFIG
+} from './security.js';
+
 // 导出工具函数
 export * from './utils/selector-utils.js';
 

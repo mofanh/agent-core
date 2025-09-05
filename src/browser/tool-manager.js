@@ -10,6 +10,12 @@ import { BrowserInstance } from './browser-instance.js';
 import { BrowserSecurityPolicy } from './security/sandbox-policy.js';
 import { BrowserInstancePool } from './instance-pool.js';
 import { BrowserToolMonitor } from './monitor.js';
+import { 
+  createBrowserSecurityManager,
+  SECURITY_LEVELS,
+  RISK_LEVELS,
+  DEFAULT_SECURITY_CONFIG
+} from './security.js';
 import { BROWSER_TOOLS, TOOL_STATUS, getSupportedTools } from './index.js';
 
 /**
@@ -61,6 +67,19 @@ export class BrowserToolManager extends EventEmitter {
         ...config.monitoring
       },
       
+      // 安全配置
+      security: {
+        ...DEFAULT_SECURITY_CONFIG,
+        securityLevel: config.security?.securityLevel || SECURITY_LEVELS.NORMAL,
+        enableSandbox: config.security?.enableSandbox !== false,
+        maxExecutionTime: config.security?.maxExecutionTime || 30000,
+        maxMemoryUsage: config.security?.maxMemoryUsage || 512 * 1024 * 1024,
+        allowedDomains: config.security?.allowedDomains || [],
+        blockedDomains: config.security?.blockedDomains || ['localhost', '127.0.0.1'],
+        auditLog: config.security?.auditLog !== false,
+        ...config.security
+      },
+      
       ...config
     };
     
@@ -83,6 +102,9 @@ export class BrowserToolManager extends EventEmitter {
     
     // 性能监控
     this.monitor = new BrowserToolMonitor(this.config.monitoring);
+    
+    // 安全管理器
+    this.securityManager = createBrowserSecurityManager(this.config.security);
     
     this.securityPolicy = new BrowserSecurityPolicy(this.config.security);
     this.tools = new Map();
@@ -328,6 +350,49 @@ export class BrowserToolManager extends EventEmitter {
       
       // 安全验证
       context.status = TOOL_STATUS.RUNNING;
+      
+      // 现代安全管理器验证
+      const securitySession = this.securityManager.createSecureSession({
+        maxExecutionTime: this.config.security.maxExecutionTime,
+        permissions: ['navigate', 'extract', 'interact', 'evaluate']
+      });
+      
+      const permissionCheck = this.securityManager.validateSessionPermission(
+        securitySession.sessionId, 
+        this.getOperationTypeFromTool(toolName),
+        args
+      );
+      
+      if (!permissionCheck.allowed) {
+        throw new Error(`安全策略阻止操作: ${permissionCheck.reason}`);
+      }
+      
+      // 参数安全验证
+      if (args.url) {
+        const urlValidation = this.securityManager.validateURL(args.url, 'navigation');
+        if (!urlValidation.isValid) {
+          throw new Error(`URL安全验证失败: ${urlValidation.violations.map(v => v.message).join(', ')}`);
+        }
+        args.url = urlValidation.sanitizedUrl;
+      }
+      
+      if (args.selector) {
+        const selectorValidation = this.securityManager.validateSelector(args.selector, 'extraction');
+        if (!selectorValidation.isValid) {
+          throw new Error(`选择器安全验证失败: ${selectorValidation.violations.map(v => v.message).join(', ')}`);
+        }
+        args.selector = selectorValidation.sanitizedSelector;
+      }
+      
+      if (args.code) {
+        const codeValidation = this.securityManager.validateJavaScript(args.code, 'evaluation');
+        if (!codeValidation.isValid) {
+          throw new Error(`JavaScript代码安全验证失败: ${codeValidation.violations.map(v => v.message).join(', ')}`);
+        }
+        args.code = codeValidation.sanitizedCode;
+      }
+      
+      // 传统安全策略验证（保持向后兼容）
       await this.securityPolicy.validateOperation(toolName, args);
       
       // 获取浏览器实例
@@ -564,17 +629,23 @@ export class BrowserToolManager extends EventEmitter {
     // 实例池指标
     const instancePoolStats = this.instancePool ? this.instancePool.getStats() : null;
     
+    // 安全指标
+    const securityStats = this.getSecurityStats();
+    
     return {
       traditional: traditionalMetrics,
       monitoring: monitorStats,
       instancePool: instancePoolStats,
+      security: securityStats,
       combined: {
         totalExecutions: monitorStats.global.totalExecutions,
         successRate: (1 - monitorStats.global.errorRate) * 100,
         avgExecutionTime: monitorStats.global.avgDuration,
         errorRate: monitorStats.global.errorRate * 100,
         timeoutRate: monitorStats.global.timeoutRate * 100,
-        uptime: monitorStats.global.uptime
+        uptime: monitorStats.global.uptime,
+        securityLevel: securityStats.config.securityLevel,
+        activeSessions: securityStats.manager.activeSessions
       }
     };
   }
@@ -626,6 +697,45 @@ export class BrowserToolManager extends EventEmitter {
   getExecutionHistory(limit = 50) {
     return this.executionHistory.slice(-limit);
   }
+  
+  /**
+   * 从工具名称映射到操作类型
+   * @param {string} toolName - 工具名称
+   * @returns {string} 操作类型
+   */
+  getOperationTypeFromTool(toolName) {
+    const operationMap = {
+      [BROWSER_TOOLS.NAVIGATE]: 'navigate',
+      [BROWSER_TOOLS.EXTRACT]: 'extract',
+      [BROWSER_TOOLS.CLICK]: 'interact',
+      [BROWSER_TOOLS.TYPE]: 'interact',
+      [BROWSER_TOOLS.SCROLL]: 'interact',
+      [BROWSER_TOOLS.WAIT]: 'interact',
+      [BROWSER_TOOLS.SCREENSHOT]: 'capture',
+      [BROWSER_TOOLS.PDF]: 'capture',
+      [BROWSER_TOOLS.EVALUATE]: 'evaluate',
+      [BROWSER_TOOLS.GET_CONTENT]: 'extract',
+      [BROWSER_TOOLS.SET_VIEWPORT]: 'interact'
+    };
+    
+    return operationMap[toolName] || 'unknown';
+  }
+  
+  /**
+   * 获取安全统计
+   * @returns {Object} 安全统计信息
+   */
+  getSecurityStats() {
+    return {
+      manager: this.securityManager.getSecurityStats(),
+      policy: this.securityPolicy.getStats ? this.securityPolicy.getStats() : null,
+      config: {
+        securityLevel: this.config.security.securityLevel,
+        sandboxEnabled: this.config.security.enableSandbox,
+        auditLogEnabled: this.config.security.auditLog
+      }
+    };
+  }
 
   /**
    * 清理资源
@@ -647,6 +757,11 @@ export class BrowserToolManager extends EventEmitter {
       // 清理监控器
       if (this.monitor) {
         this.monitor.destroy();
+      }
+      
+      // 清理安全管理器
+      if (this.securityManager) {
+        this.securityManager.cleanup();
       }
       
       this.tools.clear();
