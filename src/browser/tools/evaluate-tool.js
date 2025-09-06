@@ -5,7 +5,6 @@
  */
 
 import { BaseBrowserTool } from './base-tool.js';
-import { logger } from '../../utils/logger.js';
 
 /**
  * JavaScript执行工具类

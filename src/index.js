@@ -28,32 +28,25 @@ export {
   CONNECTION_STATUS,
   createMCPClient,
   createMCPConnectionManager,
-  createMCPSystem,
-  TOOL_CHAIN_TEMPLATES,
-  MCP_METHODS,
-  createJsonRpcRequest,
-  createJsonRpcResponse,
-  createTextContent,
-  createTool
+  createMCPSystem
 } from './mcp/index.js';
 
-// 导出浏览器工具相关功能
+// 导出 MCP 浏览器功能
+export { 
+  MCPBrowserClient,
+  createMCPBrowserClient
+} from './mcp/browser-client.js';
+
+// 导出浏览器工具模块
+export * from './browser/index.js';
+
+// 导出 MCP 服务模块
 export {
-  BrowserToolManager,
-  BrowserInstance,
-  BrowserSecurityPolicy,
-  NavigateTool,
-  ClickTool,
-  ExtractTool,
-  TypeTool,
-  ScreenshotTool,
-  EvaluateTool,
-  BROWSER_TOOLS,
-  BROWSER_ENGINES,
-  TOOL_STATUS,
-  createBrowserToolManager,
-  getSupportedTools
-} from './browser/index.js';
+  MCPBrowserServer,
+  createMCPBrowserServer,
+  startMCPBrowserServer
+} from './mcp/browser-server.js';
+
 // agent-core 主入口，根据 README 示例导出核心 API
 
 // 引入日志类和事件发射器

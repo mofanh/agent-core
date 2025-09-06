@@ -4,21 +4,16 @@
  * @fileoverview 提供浏览器自动化工具支持，参考 codex-rs 本地工具设计
  */
 
-// 导入核心类
+// 导入核心管理类
 import { BrowserToolManager } from './tool-manager.js';
 import { BrowserInstance } from './browser-instance.js';
 import { BrowserSecurityPolicy } from './security/sandbox-policy.js';
-import { BrowserInstancePool } from './instance-pool.js';
-import { BrowserToolMonitor } from './monitor.js';
 import { BrowserToolChain } from './tool-chain.js';
 
-// 导入工具类
-import { NavigateTool } from './tools/navigate.js';
-import { ClickTool } from './tools/click.js';
-import { ExtractTool } from './tools/extract.js';
-import { TypeTool } from './tools/type.js';
-import { ScreenshotTool } from './tools/screenshot.js';
-import { EvaluateTool } from './tools/evaluate.js';
+// 导出核心管理类
+export { BrowserToolManager } from './tool-manager.js';
+export { BrowserInstance } from './browser-instance.js';
+export { BrowserSecurityPolicy } from './security/sandbox-policy.js';
 
 // 导出工具类
 export { BaseBrowserTool } from './tools/base-tool.js';
@@ -29,12 +24,7 @@ export { TypeTool } from './tools/type-tool.js';
 export { ScreenshotTool } from './tools/screenshot-tool.js';
 export { EvaluateTool } from './tools/evaluate-tool.js';
 
-// 导出工具管理器和实例
-export { BrowserToolManager } from './tool-manager.js';
-export { BrowserInstance } from './browser-instance.js';
-export { BrowserSecurityPolicy } from './security/sandbox-policy.js';
-
-// 导出 Week 3 新增功能
+// 导出 Week 3 高级功能
 export { BrowserInstancePool } from './instance-pool.js';
 export { BrowserToolMonitor } from './monitor.js';
 export { BrowserToolChain } from './tool-chain.js';
@@ -50,16 +40,6 @@ export {
 
 // 导出工具函数
 export * from './utils/selector-utils.js';
-
-// 导出工具类
-export {
-  NavigateTool,
-  ClickTool,
-  ExtractTool,
-  TypeTool,
-  ScreenshotTool,
-  EvaluateTool
-};
 
 // 浏览器工具常量定义（参考 codex 的本地工具命名）
 export const BROWSER_TOOLS = {

@@ -5,7 +5,6 @@
  */
 
 import { BaseBrowserTool } from './base-tool.js';
-import { logger } from '../../utils/logger.js';
 import { isValidCSSSelector } from '../utils/selector-utils.js';
 
 /**
@@ -188,7 +187,7 @@ export class NavigateTool extends BaseBrowserTool {
       // 设置用户代理
       if (userAgent) {
         await page.setUserAgent(userAgent);
-        logger.debug('设置User-Agent:', userAgent);
+        this.logger.debug('设置User-Agent:', userAgent);
       }
 
       // 设置额外的HTTP头部
