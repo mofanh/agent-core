@@ -201,6 +201,187 @@ const manager = new MCPConnectionManager();
 await manager.connect('browser-server', { command: 'codex', args: ['mcp', 'browser'] });
 ```
 
+## 🔧 浏览器工具调用方式深度分析
+
+### **实现架构**: MCP 请求 → 进程隔离 → 本地工具执行
+
+基于代码分析和实际测试，当前浏览器工具调用采用**混合架构**模式：
+
+### **1. 🔧 MCP 方式（推荐生产环境）**
+
+#### **调用链路**
+```
+用户调用 → MCPBrowserClient → 独立 MCP 服务器进程 → BrowserToolManager.executeLocalTool
+```
+
+#### **详细流程**
+```javascript
+// 1. 客户端发起调用
+const client = new MCPBrowserClient();
+await client.callTool('browser_navigate', { url: 'https://example.com' });
+
+// 2. MCP 服务器接收请求 (src/mcp/browser-server.js)
+this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  
+  switch (name) {
+    case 'browser_navigate':
+      result = await this.toolSystem.toolManager.executeLocalTool(
+        'browser.navigate', args, `mcp-${Date.now()}`
+      );
+      break;
+  }
+});
+
+// 3. 本地工具执行 (src/browser/tool-manager.js)
+async executeLocalTool(toolName, args, callId) {
+  // 安全验证、获取浏览器实例、执行工具
+  const tool = await this.getToolInstance(toolName);
+  const result = await tool.execute(toolContext);
+  return result;
+}
+```
+
+#### **架构优势**
+- ✅ **进程隔离**: 浏览器操作在独立进程中，崩溃不影响主应用
+- ✅ **标准协议**: 符合 Model Context Protocol 规范
+- ✅ **安全性**: 进程级别的安全隔离
+- ✅ **可扩展**: 支持远程 MCP 服务器
+- ✅ **资源管理**: 独立的内存和 CPU 管理
+- ✅ **监控审计**: 独立的日志和性能监控
+
+### **2. 🏠 直接本地方式（开发调试）**
+
+#### **调用链路**
+```
+用户调用 → createBrowserToolSystem → BrowserToolManager.executeLocalTool
+```
+
+#### **详细流程**
+```javascript
+// 1. 直接创建工具系统
+const toolSystem = createBrowserToolSystem();
+await toolSystem.initialize();
+
+// 2. 直接调用工具管理器
+const result = await toolSystem.toolManager.executeLocalTool(
+  'browser.navigate',
+  { url: 'https://example.com' },
+  'local-call-id'
+);
+```
+
+#### **架构优势**
+- ✅ **性能**: 无进程间通信开销
+- ✅ **简单**: 直接函数调用，调试方便
+- ✅ **同步**: 共享应用状态
+- ✅ **开发友好**: 断点调试、错误堆栈清晰
+
+### **3. 📋 关键发现**
+
+#### **MCP 服务器是代理层，不是重新实现**
+```javascript
+// src/mcp/browser-server.js - MCP 服务器实现
+case 'browser_navigate':
+  // 直接调用本地工具实现，不是重新实现
+  result = await this.toolSystem.toolManager.executeLocalTool(
+    'browser.navigate', args, `mcp-${Date.now()}`
+  );
+  break;
+```
+
+#### **本地工具是统一的实际执行者**
+```javascript
+// src/browser/tool-manager.js - 统一的工具执行逻辑
+async executeLocalTool(toolName, args, callId) {
+  // 1. 安全验证和参数处理
+  await this.securityPolicy.validateOperation(toolName, args);
+  
+  // 2. 获取浏览器实例
+  browserContext = await this.getBrowserContext();
+  
+  // 3. 获取工具实例并执行
+  const tool = await this.getToolInstance(toolName);
+  const result = await tool.execute(toolContext);
+  
+  // 4. 记录执行结果和性能指标
+  this.recordExecution(context);
+  return result;
+}
+```
+
+### **4. 🏗️ 架构对比分析**
+
+| 方面 | MCP 方式 | 直接方式 |
+|------|----------|----------|
+| **进程模型** | 独立进程 | 同进程 |
+| **通信方式** | stdio/JSON-RPC | 直接函数调用 |
+| **安全隔离** | 进程级隔离 | 内存共享 |
+| **性能开销** | 进程间通信 | 直接内存访问 |
+| **错误影响** | 隔离，不影响主程序 | 可能影响主程序 |
+| **调试难度** | 需要进程间调试 | 直接调试 |
+| **资源管理** | 独立资源池 | 共享资源 |
+| **标准化** | MCP 协议标准 | 自定义接口 |
+| **工具实现** | 🔄 **相同的本地工具** | 🔄 **相同的本地工具** |
+
+### **5. 🎯 统一实现保证**
+
+#### **核心工具实现位置**
+```
+src/browser/tools/
+├── navigate-tool.js    # 页面导航实现
+├── click-tool.js       # 元素点击实现  
+├── extract-tool.js     # 内容提取实现
+├── type-tool.js        # 文本输入实现
+├── screenshot-tool.js  # 页面截图实现
+└── evaluate-tool.js    # JavaScript执行实现
+```
+
+#### **统一安全策略**
+```javascript
+// 两种方式都使用相同的安全验证
+await this.securityPolicy.validateOperation(toolName, args);
+const urlValidation = this.securityManager.validateURL(args.url);
+const selectorValidation = this.securityManager.validateSelector(args.selector);
+```
+
+#### **统一性能监控**
+```javascript
+// 两种方式都使用相同的监控系统
+const monitorSession = this.monitor.startExecution(toolName, { callId, args });
+this.recordExecution(context);
+this.updateMetrics('success', duration);
+```
+
+### **6. 🚀 选择建议**
+
+#### **使用 MCP 方式的场景**
+- ✅ **生产环境**: 需要稳定性和安全性
+- ✅ **多用户系统**: 需要用户隔离
+- ✅ **长时间运行**: 需要故障隔离
+- ✅ **标准化集成**: 需要符合 MCP 协议
+- ✅ **资源限制**: 需要独立的资源管理
+
+#### **使用直接方式的场景**
+- ✅ **开发调试**: 需要快速迭代和调试
+- ✅ **单用户应用**: 不需要用户隔离
+- ✅ **性能敏感**: 需要最低延迟
+- ✅ **简单集成**: 快速原型和测试
+- ✅ **状态共享**: 需要与主程序共享状态
+
+### **7. 🔍 结论**
+
+**Agent-Core 采用的是创新的混合架构模式：**
+
+- 🎯 **统一实现**: 两种调用方式最终都使用相同的本地工具实现，保证行为一致性
+- 🔧 **灵活选择**: 开发者可以根据需求选择合适的调用方式
+- 🛡️ **安全设计**: MCP 方式提供进程级安全隔离
+- ⚡ **性能兼顾**: 直接方式提供最优性能
+- 📈 **可扩展性**: 支持外部 MCP 服务器集成
+- 🔄 **代理模式**: MCP 服务器作为代理层，不重复实现业务逻辑
+
+这种设计既满足了生产环境的安全性和稳定性要求，又兼顾了开发环境的便利性和性能需求！
+
 ## 📋 版本更新记录
 
 ### v1.1.0 - MCP 浏览器服务架构 (2025-09-06)
@@ -2128,6 +2309,32 @@ try {
 3. **性能优化**: 延迟加载、连接池、资源清理
 4. **可扩展性**: 基于 BaseBrowserTool 可快速添加新工具
 5. **健壮性**: 完整的错误处理和超时控制
+6. **🆕 混合架构**: MCP 服务代理 + 统一本地实现的创新模式
+7. **🆕 双重调用**: 支持 MCP 协议调用和直接本地调用两种方式
+8. **🆕 进程隔离**: MCP 服务器独立进程运行，提供企业级安全保障
+
+### 🔧 浏览器工具调用方式技术特性
+
+**统一实现基础**:
+- 所有调用方式最终都使用相同的本地工具实现 (`executeLocalTool`)
+- 保证 MCP 方式和直接方式的行为完全一致
+- 统一的安全策略、性能监控和错误处理机制
+
+**MCP 代理模式**:
+- MCP 服务器作为代理层，不重复实现业务逻辑
+- 进程隔离提供企业级安全保障
+- 标准化的 JSON-RPC 2.0 协议通信
+- 支持远程 MCP 服务器扩展
+
+**灵活集成选择**:
+- 开发调试：直接方式，性能最优，调试便利
+- 生产环境：MCP 方式，安全隔离，标准协议
+- 外部集成：支持 codex-rs 等外部 MCP 服务器
+
+**技术创新点**:
+- 首创 MCP 协议的浏览器自动化服务实现
+- 进程间通信 + 本地工具执行的混合架构
+- 统一安全策略跨越两种调用方式
 
 ### ⏭️ 下一步计划
 
@@ -2342,6 +2549,15 @@ try {
 - **智能客户端**: 自动进程管理、连接状态监控
 - **7个核心工具**: navigate, extract, click, type, screenshot, evaluate, get_url
 
+#### **🆕 混合调用架构 (创新特性)**
+- **双重调用模式**: 支持 MCP 协议调用 + 直接本地调用
+- **统一实现基础**: 两种方式都使用相同的本地工具实现 (`executeLocalTool`)
+- **MCP 代理模式**: 服务器作为代理层，不重复实现业务逻辑
+- **灵活场景选择**: 
+  - 开发调试 → 直接方式 (性能最优)
+  - 生产环境 → MCP 方式 (安全隔离)
+  - 外部集成 → 标准 MCP 协议
+
 #### **企业级特性**
 - **分层架构**: API → Service → Integration → Infrastructure
 - **安全策略**: URL验证、沙箱控制、超时管理
@@ -2394,6 +2610,7 @@ examples/             # 示例代码 (800+ 行)
 - ✅ **MCP 集成测试**: 服务器/客户端通信验证
 - ✅ **Schema 解析修复**: 解决 MCP SDK 兼容性问题
 - ✅ **构建验证**: Rollup 配置优化，支持 MCP 依赖
+- ✅ **🆕 调用方式验证**: MCP 方式和直接方式的完整测试分析
 
 ### 🎯 下一步计划
 
@@ -2401,11 +2618,13 @@ examples/             # 示例代码 (800+ 行)
 - [ ] **WebPilot 集成**: 更新 WebPilot 使用 agent-core v1.1.0
 - [ ] **Puppeteer 集成**: 添加 Puppeteer 依赖，完整浏览器功能
 - [ ] **生产部署**: 发布到 npm，提供生产环境支持
+- [ ] **🆕 调用方式文档**: 完善 MCP vs 直接调用的选择指南
 
 #### **中期目标 (1个月)**
 - [ ] **codex-rs 集成**: 与 codex-rs MCP 服务器完整集成
 - [ ] **性能优化**: 浏览器实例池化、并发控制
 - [ ] **监控仪表盘**: 实时性能监控和分析
+- [ ] **🆕 混合架构优化**: 进一步完善 MCP 代理模式的性能和安全性
 
 #### **长期目标 (3个月)**
 - [ ] **AI 工作流**: 与 LLM 深度集成的智能工作流
@@ -2415,3 +2634,5 @@ examples/             # 示例代码 (800+ 行)
 ---
 
 **🎉 项目里程碑**: Agent-Core v1.1.0 成功实现了完整的 MCP 浏览器服务架构，为智能代理生态系统提供了强大的浏览器自动化能力！
+
+**🔧 重大技术创新**: 首创混合调用架构，支持 MCP 协议调用和直接本地调用两种模式，既保证了生产环境的安全性和标准化，又兼顾了开发环境的性能和便利性。通过统一的本地工具实现确保了行为一致性，通过 MCP 代理模式避免了重复实现，为企业级浏览器自动化服务树立了新的架构标准！

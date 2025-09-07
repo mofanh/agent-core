@@ -215,22 +215,22 @@ export class MCPBrowserServer {
         
         switch (name) {
           case 'browser_navigate':
-            result = await this.toolSystem.toolManager.executeTool('browser.navigate', args);
+            result = await this.toolSystem.toolManager.executeLocalTool('browser.navigate', args, `mcp-${Date.now()}`);
             break;
           case 'browser_extract':
-            result = await this.toolSystem.toolManager.executeTool('browser.extract', args);
+            result = await this.toolSystem.toolManager.executeLocalTool('browser.extract', args, `mcp-${Date.now()}`);
             break;
           case 'browser_click':
-            result = await this.toolSystem.toolManager.executeTool('browser.click', args);
+            result = await this.toolSystem.toolManager.executeLocalTool('browser.click', args, `mcp-${Date.now()}`);
             break;
           case 'browser_type':
-            result = await this.toolSystem.toolManager.executeTool('browser.type', args);
+            result = await this.toolSystem.toolManager.executeLocalTool('browser.type', args, `mcp-${Date.now()}`);
             break;
           case 'browser_screenshot':
-            result = await this.toolSystem.toolManager.executeTool('browser.screenshot', args);
+            result = await this.toolSystem.toolManager.executeLocalTool('browser.screenshot', args, `mcp-${Date.now()}`);
             break;
           case 'browser_evaluate':
-            result = await this.toolSystem.toolManager.executeTool('browser.evaluate', args);
+            result = await this.toolSystem.toolManager.executeLocalTool('browser.evaluate', args, `mcp-${Date.now()}`);
             break;
           case 'browser_get_url':
             result = await this.getCurrentUrl();
