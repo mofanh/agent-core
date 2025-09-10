@@ -108,6 +108,16 @@ export class LLM {
   }
 
   /**
+   * 发送请求（request 方法的别名，用于兼容性）
+   * @param {object} payload - 请求负载
+   * @param {object} [options] - 请求选项
+   * @returns {Promise<any>} 响应结果
+   */
+  async request(payload, options = {}) {
+    return this.post(payload, options);
+  }
+
+  /**
    * 流式请求
    * @param {object} payload - 请求负载
    * @param {object} [options] - 请求选项
@@ -197,6 +207,11 @@ export async function* sparkRequestHandler(payload, options = {}) {
   const apiKey = options.apiKey || process.env.SPARK_API_KEY || 'nPLgqzEHEtEjZcnsDKdS:mZIvrDDeVfZRpYejdKau';
   const baseUrl = options.baseUrl || 'https://spark-api-open.xf-yun.com/v1/chat/completions';
   
+  // 调试输出
+  if (process.env.DEBUG) {
+    console.log('[DEBUG] Spark Request:', JSON.stringify(payload, null, 2));
+  }
+  
   const response = await fetch(baseUrl, {
     method: 'POST',
     headers: {
@@ -208,12 +223,18 @@ export async function* sparkRequestHandler(payload, options = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const errorText = await response.text();
+    if (process.env.DEBUG) {
+      console.log('[DEBUG] Spark Error Response:', errorText);
+    }
+    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
   }
 
   if (!payload.stream) {
-    // 非流式响应
-    return await response.json();
+    // 非流式响应 - 直接yield结果
+    const result = await response.json();
+    yield result;
+    return;
   }
 
   // 流式响应处理

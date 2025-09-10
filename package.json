@@ -11,6 +11,9 @@
     "README.md",
     "LICENSE"
   ],
+  "bin": {
+    "agent-cli": "bin/agent-cli.js"
+  },
   "scripts": {
     "build": "rollup -c",
     "build:full": "./scripts/build.sh",
@@ -18,7 +21,16 @@
     "dev": "tsx examples/index.js",
     "test": "node --experimental-vm-modules ./node_modules/.bin/jest",
     "test:watch": "node --experimental-vm-modules ./node_modules/.bin/jest --watch",
+    "test:cli": "node test/cli-comprehensive.test.js",
+    "test:spark": "node test/spark-real-api.test.js",
     "mcp:browser": "node bin/mcp-browser-server.js",
+    "cli": "node bin/agent-cli.js",
+    "cli:help": "node bin/agent-cli.js --help",
+    "cli:interactive": "node bin/agent-cli.js interactive --provider spark",
+    "cli:exec": "node bin/agent-cli.js exec",
+    "cli:mcp": "node bin/agent-cli.js mcp",
+    "cli:browser": "node bin/agent-cli.js browser",
+    "cli:debug": "node bin/agent-cli.js debug llm --provider spark",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
@@ -89,6 +101,10 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.5"
+    "@modelcontextprotocol/sdk": "^1.17.5",
+    "chalk": "^5.6.2",
+    "commander": "^12.1.0",
+    "inquirer": "^9.3.7",
+    "ora": "^8.2.0"
   }
 }
