@@ -11,8 +11,8 @@ import { isValidCSSSelector } from '../utils/selector-utils.js';
  * 页面导航工具类
  */
 export class NavigateTool extends BaseBrowserTool {
-  constructor(browserInstance, securityPolicy) {
-    super('navigate', browserInstance, securityPolicy);
+  constructor() {
+    super('navigate');
   }
 
   /**
@@ -166,11 +166,20 @@ export class NavigateTool extends BaseBrowserTool {
   }
 
   /**
-   * 执行页面导航
-   * @param {Object} params - 工具参数
+   * 执行导航操作（基类接口实现）
+   * @param {Object} context - 执行上下文
    * @returns {Promise<Object>} 执行结果
    */
-  async executeInternal(params) {
+  async doExecute(context) {
+    return await this.executeInternal(context);
+  }
+
+  /**
+   * 内部执行导航操作
+   * @param {Object} context - 执行上下文
+   * @returns {Promise<Object>} 导航结果
+   */
+  async executeInternal(context) {
     const {
       url,
       waitForSelector,
@@ -179,9 +188,9 @@ export class NavigateTool extends BaseBrowserTool {
       userAgent,
       referer,
       extraHeaders
-    } = params;
+    } = context.args;
 
-    const page = await this.browserInstance.getCurrentPage();
+    const page = context.page;
     
     try {
       // 设置用户代理
@@ -197,12 +206,12 @@ export class NavigateTool extends BaseBrowserTool {
           headers['Referer'] = referer;
         }
         await page.setExtraHTTPHeaders(headers);
-        logger.debug('设置HTTP头部:', headers);
+        this.logger.debug('设置HTTP头部:', headers);
       }
 
       // 记录导航开始
       const startTime = Date.now();
-      logger.info(`开始导航到: ${url}`);
+      this.logger.info(`开始导航到: ${url}`);
 
       // 执行导航
       const navigationPromise = waitForNavigation 
@@ -223,11 +232,11 @@ export class NavigateTool extends BaseBrowserTool {
       const navigationResponse = response[0];
       const navigationTime = Date.now() - startTime;
 
-      logger.info(`页面导航完成，耗时: ${navigationTime}ms`);
+      this.logger.info(`页面导航完成，耗时: ${navigationTime}ms`);
 
       // 检查响应状态
       if (navigationResponse && !navigationResponse.ok()) {
-        logger.warn(`页面响应状态码: ${navigationResponse.status()}`);
+        this.logger.warn(`页面响应状态码: ${navigationResponse.status()}`);
       }
 
       // 等待指定选择器出现
@@ -239,9 +248,9 @@ export class NavigateTool extends BaseBrowserTool {
             timeout: Math.min(timeout, 10000) // 选择器等待时间最多10秒
           });
           selectorFound = true;
-          logger.debug(`选择器已出现: ${waitForSelector}`);
+          this.logger.debug(`选择器已出现: ${waitForSelector}`);
         } catch (error) {
-          logger.warn(`等待选择器超时: ${waitForSelector}`, error.message);
+          this.logger.warn(`等待选择器超时: ${waitForSelector}`, error.message);
           // 选择器超时不算失败，继续执行
         }
       }
@@ -273,7 +282,7 @@ export class NavigateTool extends BaseBrowserTool {
       };
 
     } catch (error) {
-      logger.error('页面导航失败:', error);
+      this.logger.error('页面导航失败:', error);
       
       // 尝试获取当前页面状态用于错误诊断
       let currentUrl = 'unknown';
@@ -322,7 +331,7 @@ export class NavigateTool extends BaseBrowserTool {
 
       return info;
     } catch (error) {
-      logger.warn('获取页面信息失败:', error.message);
+      this.logger.warn('获取页面信息失败:', error.message);
       return {
         url: page.url(),
         title: await page.title().catch(() => 'Unknown'),

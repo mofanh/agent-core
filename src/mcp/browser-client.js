@@ -16,11 +16,8 @@ export class MCPBrowserClient {
     this.config = {
       command: config.command || 'node',
       args: config.serverPath ? [config.serverPath] : [
-        '-e',
-        `
-        import { startMCPBrowserServer } from '@mofanh/agent-core/mcp/browser-server.js';
-        startMCPBrowserServer();
-      `],
+        'bin/mcp-browser-server.js'
+      ],
       timeout: config.timeout || 30000,
       ...config
     };

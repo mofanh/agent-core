@@ -74,7 +74,7 @@ export class BrowserToolManager extends EventEmitter {
         enableSandbox: config.security?.enableSandbox !== false,
         maxExecutionTime: config.security?.maxExecutionTime || 30000,
         maxMemoryUsage: config.security?.maxMemoryUsage || 512 * 1024 * 1024,
-        allowedDomains: config.security?.allowedDomains || [],
+        allowedDomains: config.security?.allowedDomains || ['*'],
         blockedDomains: config.security?.blockedDomains || ['localhost', '127.0.0.1'],
         auditLog: config.security?.auditLog !== false,
         ...config.security
@@ -175,6 +175,7 @@ export class BrowserToolManager extends EventEmitter {
         
         // 初始化单个浏览器实例
         this.browserInstance = new BrowserInstance(this.config);
+        await this.browserInstance.initialize();
         
         // 监听浏览器事件
         this.setupBrowserEventHandlers();
@@ -299,11 +300,14 @@ export class BrowserToolManager extends EventEmitter {
    * @private
    */
   async getToolInstance(toolName) {
-    if (this.tools.has(toolName)) {
-      return this.tools.get(toolName);
+    // 标准化工具名（支持 'navigate' 和 'browser.navigate' 两种格式）
+    const normalizedName = toolName.startsWith('browser.') ? toolName : `browser.${toolName}`;
+    
+    if (this.tools.has(normalizedName)) {
+      return this.tools.get(normalizedName);
     }
     
-    const toolLoader = this.toolLoaders[toolName];
+    const toolLoader = this.toolLoaders[normalizedName];
     if (!toolLoader) {
       throw new Error(`未知的浏览器工具: ${toolName}`);
     }
@@ -311,7 +315,7 @@ export class BrowserToolManager extends EventEmitter {
     try {
       const ToolClass = await toolLoader();
       const toolInstance = new ToolClass();
-      this.tools.set(toolName, toolInstance);
+      this.tools.set(normalizedName, toolInstance);
       return toolInstance;
     } catch (error) {
       throw new Error(`加载工具失败: ${toolName} - ${error.message}`);
@@ -704,6 +708,9 @@ export class BrowserToolManager extends EventEmitter {
    * @returns {string} 操作类型
    */
   getOperationTypeFromTool(toolName) {
+    // 标准化工具名（支持 'navigate' 和 'browser.navigate' 两种格式）
+    const normalizedName = toolName.startsWith('browser.') ? toolName : `browser.${toolName}`;
+    
     const operationMap = {
       [BROWSER_TOOLS.NAVIGATE]: 'navigate',
       [BROWSER_TOOLS.EXTRACT]: 'extract',
@@ -718,7 +725,7 @@ export class BrowserToolManager extends EventEmitter {
       [BROWSER_TOOLS.SET_VIEWPORT]: 'interact'
     };
     
-    return operationMap[toolName] || 'unknown';
+    return operationMap[normalizedName] || 'unknown';
   }
   
   /**
