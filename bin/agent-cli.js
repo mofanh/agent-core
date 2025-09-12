@@ -281,7 +281,7 @@ async function performThinkingLoop(agent, query, globalOpts, options, spinner, i
 
       // 确定启用的工具
       const enabledTools = [];
-      if (options.enableBrowser || agent.browserClient) {
+      if (options.enableBrowser || agent.browserClient || agent.browserToolManager) {
         enabledTools.push('browser');
       }
       if (options.enableMcp || agent.mcpManager) {
@@ -332,7 +332,32 @@ async function performThinkingLoop(agent, query, globalOpts, options, spinner, i
           
           if (interactive) {
             console.log(chalk.blue(`🔧 工具 ${tool.name} 执行结果:`));
-            console.log(JSON.stringify(toolResult, null, 2));
+            
+            // 格式化显示不同类型的工具结果
+            if (tool.name === 'browser_navigate' && toolResult) {
+              console.log(`- URL: ${toolResult.finalUrl || toolResult.url || 'N/A'}`);
+              console.log(`- 状态: ${toolResult.statusCode || 'N/A'}`);
+              console.log(`- 标题: ${toolResult.title || 'N/A'}`);
+            } else if (tool.name === 'browser_extract' && toolResult) {
+              // 处理提取结果的显示
+              if (toolResult.results) {
+                const results = toolResult.results;
+                console.log(`- 页面标题: ${results.title?.elements?.[0]?.text || 'N/A'}`);
+                console.log(`- 主标题: ${results.mainHeading?.elements?.[0]?.text || 'N/A'}`);
+                
+                const contentText = results.content?.elements?.[0]?.text;
+                if (contentText) {
+                  console.log(`- 内容长度: ${contentText.length} 字符`);
+                  console.log(`- 内容预览: ${contentText.substring(0, 100)}${contentText.length > 100 ? '...' : ''}`);
+                } else {
+                  console.log('- 内容: 未提取到内容');
+                }
+              } else {
+                console.log(JSON.stringify(toolResult, null, 2));
+              }
+            } else {
+              console.log(JSON.stringify(toolResult, null, 2));
+            }
           }
         }
 
@@ -452,21 +477,51 @@ function parseAgentResponse(content) {
     reasoning: ''
   };
 
-  // 简单的模式匹配 - 生产环境中应该使用更复杂的 NLP 解析
+  // 更智能的模式匹配，基于成功的简化版逻辑
   const lines = content.split('\n');
   
-  for (const line of lines) {
-    // 检查浏览器工具需求
-    if (line.includes('需要浏览') || line.includes('访问网页') || line.includes('打开页面') || line.includes('浏览')) {
-      analysis.needsTools = true;
-      const urlMatch = line.match(/https?:\/\/[^\s\u4e00-\u9fff\]）)}>]+/); // 排除中文字符
-      if (urlMatch) {
-        analysis.tools.push({
-          name: 'browser_navigate',
-          args: { url: urlMatch[0] }
-        });
-      }
+  // 检查是否需要访问网页
+  const needsNavigation = content.includes('访问') && (content.includes('http') || content.includes('网页') || content.includes('网站'));
+  
+  if (needsNavigation) {
+    analysis.needsTools = true;
+    
+    // 提取URL - 更宽松的匹配，排除URL编码问题
+    const urlMatch = content.match(/https?:\/\/[^\s\u4e00-\u9fff\]）)}>，。！？]+/);
+    let url = null;
+    if (urlMatch) {
+      url = urlMatch[0].replace(/[，。！？]$/, ''); // 移除末尾的中文标点
     }
+    
+    if (url) {
+      analysis.tools.push({
+        name: 'browser_navigate',
+        args: { 
+          url: url,
+          waitUntil: 'domcontentloaded',
+          timeout: 15000
+        }
+      });
+      
+      // 如果导航成功，自动添加内容提取工具
+      analysis.tools.push({
+        name: 'browser_extract',
+        args: {
+          selectors: {
+            'title': 'title',
+            'heading': 'h1, h2',
+            'content': 'main, article, .content, body',
+            'paragraphs': 'p'
+          },
+          extractType: 'text',
+          multiple: false,
+          timeout: 10000
+        }
+      });
+    }
+  }
+  
+  for (const line of lines) {
     
     // 检查提取内容需求
     if (line.includes('需要提取内容') || line.includes('提取页面内容') || line.includes('提取页面') || line.includes('提取')) {
@@ -476,12 +531,13 @@ function parseAgentResponse(content) {
         args: {
           selectors: {
             'title': 'title',
-            'heading': 'h1, h2',
-            'content': 'main, article, .content, .post-content, .article-content'
+            'mainHeading': 'h1',
+            'content': 'main, article, .content, .post-content, .article-content, .markdown-body',
+            'paragraphs': 'p'
           },
           extractType: 'text',
-          multiple: true,
-          timeout: 30000 // 增加超时时间到30秒
+          multiple: false,
+          timeout: 30000
         }
       });
     }
@@ -564,10 +620,38 @@ function parseAgentResponse(content) {
  */
 async function executeToolCall(agent, tool, options) {
   try {
+    console.log(chalk.blue(`🔧 执行工具: ${tool.name}`), tool.args);
+    
     if (tool.name.startsWith('browser_')) {
       // 浏览器工具调用
       if (agent.browserClient) {
-        return await agent.browserClient.callTool(tool.name, tool.args);
+        const result = await agent.browserClient.callTool(tool.name, tool.args);
+        
+        // 处理MCP响应格式，提取实际数据
+        let extractedData = result;
+        if (result && typeof result === 'object') {
+          // 如果是MCP格式响应，提取数据
+          if (result.content && Array.isArray(result.content)) {
+            extractedData = result.content[0]?.text || result.content[0] || result;
+          } else if (result.data) {
+            extractedData = result.data;
+          }
+        }
+        
+        console.log(chalk.green(`✅ 工具 ${tool.name} 执行成功`));
+        return extractedData;
+      } else if (agent.browserToolManager) {
+        // 直接使用 BrowserToolManager
+        const response = await agent.browserToolManager.executeLocalTool(tool.name.replace('browser_', ''), tool.args);
+        
+        // 处理双层嵌套的响应数据
+        let extractedData = response.data;
+        if (response.data && response.data.data) {
+          extractedData = response.data.data;
+        }
+        
+        console.log(chalk.green(`✅ 工具 ${tool.name} 执行成功`));
+        return extractedData;
       } else {
         throw new Error('浏览器工具未启用');
       }
@@ -578,6 +662,7 @@ async function executeToolCall(agent, tool, options) {
       throw new Error(`未知的工具: ${tool.name}`);
     }
   } catch (error) {
+    console.error(chalk.red(`❌ 工具 ${tool.name} 执行失败:`), error.message);
     return {
       error: error.message,
       success: false
@@ -648,12 +733,38 @@ async function initializeAgent(globalOpts, cmdOpts) {
 
   // 启用浏览器工具
   if (cmdOpts.enableBrowser) {
-    // 先启动 MCP 浏览器服务器
-    await startMCPBrowserServer();
-    
-    const { MCPBrowserClient } = await import('../src/mcp/browser-client.js');
-    agent.browserClient = new MCPBrowserClient();
-    await agent.browserClient.connect();
+    try {
+      // 方法1: 尝试使用 MCP 浏览器服务器
+      await startMCPBrowserServer();
+      
+      const { MCPBrowserClient } = await import('../src/mcp/browser-client.js');
+      agent.browserClient = new MCPBrowserClient();
+      await agent.browserClient.connect();
+      
+      console.log(chalk.green('✅ MCP 浏览器客户端连接成功'));
+    } catch (mcpError) {
+      console.log(chalk.yellow('⚠️  MCP 浏览器连接失败，尝试直接使用浏览器工具管理器...'));
+      
+      try {
+        // 方法2: 直接使用 BrowserToolManager
+        const { BrowserToolManager } = await import('../src/browser/tool-manager.js');
+        agent.browserToolManager = new BrowserToolManager({
+          headless: true,
+          defaultTimeout: 30000,
+          security: {
+            level: 'normal',
+            allowedDomains: ['*'],
+            allowedProtocols: ['https:', 'http:']
+          }
+        });
+        
+        await agent.browserToolManager.initialize();
+        console.log(chalk.green('✅ 浏览器工具管理器初始化成功'));
+      } catch (directError) {
+        console.error(chalk.red('❌ 浏览器工具初始化完全失败:'), directError.message);
+        console.log(chalk.yellow('⚠️  继续运行，但浏览器工具将不可用'));
+      }
+    }
   }
 
   // 启用 MCP 连接
@@ -688,6 +799,9 @@ function outputResult(result, format) {
 async function cleanup(agent) {
   if (agent.browserClient) {
     await agent.browserClient.disconnect();
+  }
+  if (agent.browserToolManager) {
+    await agent.browserToolManager.cleanup();
   }
   if (agent.mcpManager) {
     await agent.mcpManager.disconnectAll();
