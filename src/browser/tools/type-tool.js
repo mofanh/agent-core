@@ -188,10 +188,12 @@ export class TypeTool extends BaseBrowserTool {
 
   /**
    * 执行文本输入操作
-   * @param {Object} params - 工具参数
+   * @param {Object} context - 执行上下文
    * @returns {Promise<Object>} 执行结果
    */
-  async executeInternal(params) {
+  async doExecute(context) {
+    const params = context.args;
+    const page = context.page;
     const {
       selector,
       text,
@@ -207,7 +209,6 @@ export class TypeTool extends BaseBrowserTool {
       inputMode = 'type'
     } = params;
 
-    const page = await this.browserInstance.getCurrentPage();
     const startTime = Date.now();
     
     try {
@@ -216,7 +217,7 @@ export class TypeTool extends BaseBrowserTool {
         ? detectSelectorType(selector) 
         : selectorType;
 
-      logger.info(`开始文本输入: "${text}" 到元素 ${selector} (索引: ${index})`);
+      this.logger.info(`开始文本输入: "${text}" 到元素 ${selector} (索引: ${index})`);
 
       // 等待元素出现
       let element;
@@ -246,7 +247,7 @@ export class TypeTool extends BaseBrowserTool {
       
       // 验证元素是否可输入
       if (!this.isInputElement(elementInfo)) {
-        logger.warn(`元素可能不支持文本输入: ${elementInfo.tagName}`);
+        this.logger.warn(`元素可能不支持文本输入: ${elementInfo.tagName}`);
       }
 
       // 检查元素是否可见和启用
@@ -266,7 +267,7 @@ export class TypeTool extends BaseBrowserTool {
       if (focusFirst) {
         await element.focus();
         await page.waitForTimeout(100);
-        logger.debug('已聚焦目标元素');
+        this.logger.debug('已聚焦目标元素');
       }
 
       // 获取输入前的值
@@ -275,7 +276,7 @@ export class TypeTool extends BaseBrowserTool {
       // 清空现有内容
       if (clearBefore && beforeValue) {
         await this.clearElementContent(element, elementInfo);
-        logger.debug('已清空元素原有内容');
+        this.logger.debug('已清空元素原有内容');
       }
 
       // 执行文本输入
@@ -297,7 +298,7 @@ export class TypeTool extends BaseBrowserTool {
       if (pressEnter) {
         await page.keyboard.press('Enter');
         await page.waitForTimeout(100);
-        logger.debug('已按下回车键');
+        this.logger.debug('已按下回车键');
       }
 
       // 获取输入后的值
@@ -310,7 +311,7 @@ export class TypeTool extends BaseBrowserTool {
       }
 
       const executionTime = Date.now() - startTime;
-      logger.info(`文本输入完成，耗时: ${executionTime}ms`);
+      this.logger.info(`文本输入完成，耗时: ${executionTime}ms`);
 
       return {
         success: true,
@@ -336,7 +337,7 @@ export class TypeTool extends BaseBrowserTool {
       };
 
     } catch (error) {
-      logger.error('文本输入失败:', error);
+      this.logger.error('文本输入失败:', error);
       throw new Error(`文本输入失败: ${error.message}`);
     }
   }
@@ -415,7 +416,7 @@ export class TypeTool extends BaseBrowserTool {
 
       return info;
     } catch (error) {
-      logger.warn('获取元素信息失败:', error.message);
+      this.logger.warn('获取元素信息失败:', error.message);
       return {
         tagName: 'unknown',
         visible: false,
@@ -466,7 +467,7 @@ export class TypeTool extends BaseBrowserTool {
 
       return value;
     } catch (error) {
-      logger.warn('获取元素值失败:', error.message);
+      this.logger.warn('获取元素值失败:', error.message);
       return '';
     }
   }
@@ -490,7 +491,7 @@ export class TypeTool extends BaseBrowserTool {
         });
       }
     } catch (error) {
-      logger.warn('清空元素内容失败:', error.message);
+      this.logger.warn('清空元素内容失败:', error.message);
     }
   }
 

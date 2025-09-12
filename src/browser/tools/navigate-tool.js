@@ -38,6 +38,12 @@ export class NavigateTool extends BaseBrowserTool {
           description: '是否等待页面完全加载',
           default: true
         },
+        waitUntil: {
+          type: 'string',
+          description: '等待条件 (load, domcontentloaded, networkidle0, networkidle2)',
+          enum: ['load', 'domcontentloaded', 'networkidle0', 'networkidle2'],
+          default: 'networkidle2'
+        },
         timeout: {
           type: 'number',
           description: '超时时间（毫秒）',
@@ -184,6 +190,7 @@ export class NavigateTool extends BaseBrowserTool {
       url,
       waitForSelector,
       waitForNavigation = true,
+      waitUntil = 'networkidle2', // 默认使用较宽松的networkidle2
       timeout = 30000,
       userAgent,
       referer,
@@ -211,28 +218,40 @@ export class NavigateTool extends BaseBrowserTool {
 
       // 记录导航开始
       const startTime = Date.now();
+      console.log(`[DEBUG] 开始导航到: ${url}`);
+      console.log(`[DEBUG] 导航参数: waitUntil=${waitUntil}, timeout=${timeout}ms`);
+      console.log(`[DEBUG] 浏览器实例ID: ${context.instanceId || 'unknown'}`);
       this.logger.info(`开始导航到: ${url}`);
+      this.logger.info(`导航参数: waitUntil=${waitUntil}, timeout=${timeout}ms`);
 
-      // 执行导航
-      const navigationPromise = waitForNavigation 
-        ? page.waitForNavigation({ 
-            waitUntil: 'networkidle0', 
-            timeout 
-          })
-        : Promise.resolve();
+      // 执行导航 - 简化导航逻辑，避免重复等待
+      const response = await page.goto(url, { 
+        waitUntil: waitUntil,
+        timeout 
+      });
 
-      const response = await Promise.all([
-        page.goto(url, { 
-          waitUntil: waitForNavigation ? 'domcontentloaded' : 'networkidle0',
-          timeout 
-        }),
-        navigationPromise
-      ]);
-
-      const navigationResponse = response[0];
+      const navigationResponse = response;
       const navigationTime = Date.now() - startTime;
 
-      this.logger.info(`页面导航完成，耗时: ${navigationTime}ms`);
+      console.log(`[DEBUG] 页面导航完成，耗时: ${navigationTime}ms`);
+      console.log(`[DEBUG] 响应对象:`, navigationResponse ? 'exists' : 'null');
+      this.logger.info(`页面导航完成，耗时: ${navigationTime}ms，waitUntil: ${waitUntil}`);
+      
+      // 调试: 检查响应状态
+      if (navigationResponse) {
+        const status = navigationResponse.status();
+        const responseUrl = navigationResponse.url();
+        console.log(`[DEBUG] 导航响应: status=${status}, url=${responseUrl}`);
+        this.logger.info(`导航响应: status=${status}, url=${responseUrl}`);
+      } else {
+        console.log(`[DEBUG] 导航响应为空`);
+        this.logger.warn('导航响应为空');
+      }
+      
+      // 调试: 检查当前页面URL
+      const currentUrl = page.url();
+      console.log(`[DEBUG] 当前页面URL: ${currentUrl}`);
+      this.logger.info(`当前页面URL: ${currentUrl}`);
 
       // 检查响应状态
       if (navigationResponse && !navigationResponse.ok()) {
@@ -257,8 +276,13 @@ export class NavigateTool extends BaseBrowserTool {
 
       // 获取页面信息
       const pageInfo = await this.getPageInfo(page);
+      
+      console.log(`[DEBUG] pageInfo获取完成:`, {
+        url: pageInfo.url,
+        title: pageInfo.title
+      });
 
-      return {
+      const returnData = {
         success: true,
         data: {
           url: page.url(),
@@ -280,6 +304,14 @@ export class NavigateTool extends BaseBrowserTool {
         timestamp: new Date().toISOString(),
         executionTime: navigationTime
       };
+      
+      console.log(`[DEBUG] 即将返回的数据:`, {
+        finalUrl: returnData.data.finalUrl,
+        statusCode: returnData.data.statusCode,
+        title: returnData.data.title
+      });
+      
+      return returnData;
 
     } catch (error) {
       this.logger.error('页面导航失败:', error);

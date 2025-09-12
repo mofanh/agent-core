@@ -242,10 +242,16 @@ export class ExtractTool extends BaseBrowserTool {
 
   /**
    * 执行内容提取
-   * @param {Object} params - 工具参数
+   * @param {Object} context - 执行上下文
    * @returns {Promise<Object>} 执行结果
    */
-  async executeInternal(params) {
+  async doExecute(context) {
+    const params = context.args;
+    const page = context.page;
+    
+    console.log(`[DEBUG EXTRACT] 浏览器实例ID: ${context.instanceId || 'unknown'}`);
+    console.log(`[DEBUG EXTRACT] 当前页面URL: ${page.url()}`);
+    
     const {
       selectors,
       selectorType = 'auto',
@@ -259,11 +265,10 @@ export class ExtractTool extends BaseBrowserTool {
       pagination = {}
     } = params;
 
-    const page = await this.browserInstance.getCurrentPage();
     const startTime = Date.now();
     
     try {
-      logger.info(`开始提取内容: ${JSON.stringify(selectors)}`);
+      this.logger.info(`开始提取内容: ${JSON.stringify(selectors)}`);
 
       // 标准化选择器
       const selectorData = this.parseSelectors(selectors);
@@ -292,7 +297,7 @@ export class ExtractTool extends BaseBrowserTool {
       }
 
       const executionTime = Date.now() - startTime;
-      logger.info(`内容提取完成，共提取 ${totalElements} 个元素，耗时: ${executionTime}ms`);
+      this.logger.info(`内容提取完成，共提取 ${totalElements} 个元素，耗时: ${executionTime}ms`);
 
       return {
         success: true,
@@ -311,7 +316,7 @@ export class ExtractTool extends BaseBrowserTool {
       };
 
     } catch (error) {
-      logger.error('内容提取失败:', error);
+      this.logger.error('内容提取失败:', error);
       throw new Error(`内容提取失败: ${error.message}`);
     }
   }
@@ -334,7 +339,7 @@ export class ExtractTool extends BaseBrowserTool {
         totalElements += extractResult.elements ? extractResult.elements.length : 
                        (extractResult.element ? 1 : 0);
       } catch (error) {
-        logger.warn(`选择器 ${key} 提取失败:`, error.message);
+        this.logger.warn(`选择器 ${key} 提取失败:`, error.message);
         results[key] = {
           success: false,
           error: error.message,
@@ -377,7 +382,7 @@ export class ExtractTool extends BaseBrowserTool {
     }
 
     while (currentPage <= maxPages) {
-      logger.info(`提取第 ${currentPage} 页内容`);
+      this.logger.info(`提取第 ${currentPage} 页内容`);
 
       // 提取当前页内容
       const pageResults = await this.extractFromPage(selectorData, extractOptions);
@@ -400,7 +405,7 @@ export class ExtractTool extends BaseBrowserTool {
         try {
           const nextButton = await page.$(nextButtonSelector);
           if (!nextButton) {
-            logger.info('未找到下一页按钮，分页结束');
+            this.logger.info('未找到下一页按钮，分页结束');
             break;
           }
 
@@ -413,7 +418,7 @@ export class ExtractTool extends BaseBrowserTool {
           });
 
           if (!isClickable) {
-            logger.info('下一页按钮不可点击，分页结束');
+            this.logger.info('下一页按钮不可点击，分页结束');
             break;
           }
 
@@ -425,7 +430,7 @@ export class ExtractTool extends BaseBrowserTool {
           await page.waitForLoadState('networkidle');
 
         } catch (error) {
-          logger.warn(`第 ${currentPage} 页导航失败:`, error.message);
+          this.logger.warn(`第 ${currentPage} 页导航失败:`, error.message);
           break;
         }
       }
@@ -462,10 +467,20 @@ export class ExtractTool extends BaseBrowserTool {
 
     // 等待元素出现
     if (waitForElements) {
-      if (finalSelectorType === 'xpath') {
-        await page.waitForXPath(selector, { visible: true, timeout });
-      } else {
-        await page.waitForSelector(selector, { visible: true, timeout });
+      try {
+        if (finalSelectorType === 'xpath') {
+          await page.waitForXPath(selector, { timeout });
+        } else {
+          // 对于title等不可见元素，不要求visible: true
+          const isInvisibleElement = ['title', 'meta', 'script', 'style'].includes(selector.toLowerCase());
+          await page.waitForSelector(selector, { 
+            visible: !isInvisibleElement, 
+            timeout 
+          });
+        }
+      } catch (error) {
+        this.logger.warn(`等待元素超时: ${selector}`, error.message);
+        // 继续执行，不抛出错误
       }
     }
 
@@ -603,7 +618,7 @@ export class ExtractTool extends BaseBrowserTool {
       }
 
     } catch (error) {
-      logger.warn('提取元素数据失败:', error.message);
+      this.logger.warn('提取元素数据失败:', error.message);
       data.error = error.message;
     }
 

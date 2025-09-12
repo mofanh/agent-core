@@ -87,7 +87,38 @@ export class BaseBrowserTool extends EventEmitter {
    * @protected
    */
   async getCurrentPage(browser) {
-    return await browser.getCurrentPage();
+    // 如果browser有getCurrentPage方法，则直接调用（BrowserInstance对象）
+    if (browser.getCurrentPage && typeof browser.getCurrentPage === 'function') {
+      return await browser.getCurrentPage();
+    }
+    
+    // 如果是原始的Puppeteer Browser对象，则获取或创建页面
+    if (browser.pages && typeof browser.pages === 'function') {
+      const pages = await browser.pages();
+      if (pages.length > 0) {
+        return pages[0];
+      } else {
+        return await browser.newPage();
+      }
+    }
+    
+    // 如果是Playwright Browser对象
+    if (browser.newPage && typeof browser.newPage === 'function') {
+      const contexts = browser.contexts();
+      if (contexts.length > 0) {
+        const pages = contexts[0].pages();
+        if (pages.length > 0) {
+          return pages[0];
+        } else {
+          return await contexts[0].newPage();
+        }
+      } else {
+        const context = await browser.newContext();
+        return await context.newPage();
+      }
+    }
+    
+    throw new Error('无法识别的浏览器实例类型');
   }
 
   /**

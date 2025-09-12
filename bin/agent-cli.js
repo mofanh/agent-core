@@ -279,8 +279,18 @@ async function performThinkingLoop(agent, query, globalOpts, options, spinner, i
       iteration++;
       spinner.text = `🤔 思考中... (第 ${iteration}/${maxIterations} 轮)`;
 
+      // 确定启用的工具
+      const enabledTools = [];
+      if (options.enableBrowser || agent.browserClient) {
+        enabledTools.push('browser');
+      }
+      if (options.enableMcp || agent.mcpManager) {
+        enabledTools.push('mcp');
+      }
+
       // 构建上下文提示
-      const prompt = buildPromptTemplate(currentQuery, context, iteration, maxIterations);
+      const prompt = buildPromptTemplate(currentQuery, context, iteration, maxIterations, enabledTools);
+      console.log(chalk.gray('\n--- Prompt ---\n'), prompt, chalk.gray('\n---------------\n'));
 
       // 调用 LLM
       const response = await agent.llm.request({
@@ -375,17 +385,42 @@ async function performThinkingLoop(agent, query, globalOpts, options, spinner, i
 /**
  * 构建简单的提示模板
  */
-function buildPromptTemplate(query, context, iteration, maxIterations) {
+function buildPromptTemplate(query, context, iteration, maxIterations, enabledTools = []) {
   let prompt = `你是一个智能助手。请分析用户的问题并提供帮助。
 
 当前任务: ${query}
 
 `;
 
+  // 添加可用工具信息
+  if (enabledTools.length > 0) {
+    prompt += `可用工具:
+`;
+    if (enabledTools.includes('browser')) {
+      prompt += `🌐 浏览器工具:
+- browser_navigate: 访问网页 - 使用格式 "需要浏览 [URL]"
+- browser_extract: 提取网页内容 - 使用格式 "需要提取内容"
+- browser_click: 点击页面元素 - 使用格式 "需要点击 [选择器]"
+- browser_type: 输入文本 - 使用格式 "需要输入 [文本] 到 [选择器]"
+- browser_screenshot: 截图 - 使用格式 "需要截图"
+- browser_evaluate: 执行JavaScript - 使用格式 "需要执行脚本 [代码]"
+- browser_get_url: 获取当前URL - 使用格式 "需要获取当前网址"
+
+`;
+    }
+    if (enabledTools.includes('mcp')) {
+      prompt += `🔧 MCP工具: 根据连接的MCP服务器提供的工具
+
+`;
+    }
+  }
+
   if (context.length > 0) {
     prompt += '历史上下文:\n';
     context.forEach((ctx) => {
-      prompt += `第${ctx.iteration}轮: ${ctx.response.substring(0, 200)}...\n`;
+      if (ctx.response) {
+        prompt += `第${ctx.iteration}轮: ${ctx.response.substring(0, 200)}...\n`;
+      }
       if (ctx.toolResults && ctx.toolResults.length > 0) {
         prompt += `工具调用结果: ${ctx.toolResults.map(tr => `${tr.tool}成功`).join(', ')}\n`;
       }
@@ -397,9 +432,11 @@ function buildPromptTemplate(query, context, iteration, maxIterations) {
 
 请按照以下格式回答:
 1. 分析问题
-2. 如果需要使用工具，明确说明"需要浏览 [URL]" 或其他工具需求
+2. 如果需要使用工具，明确说明具体的工具调用需求（如 "需要浏览 [URL]"）
 3. 提供当前能给出的答案
-4. 如果任务已完成，在最后说明"任务完成"`;
+4. 如果任务已完成，在最后说明"任务完成"
+
+重要提示: 如果用户要求浏览网页，请务必使用浏览器工具实际访问，不要只是说明网站内容。`;
 
   return prompt;
 }
@@ -419,16 +456,88 @@ function parseAgentResponse(content) {
   const lines = content.split('\n');
   
   for (const line of lines) {
-    // 检查是否需要浏览器工具
-    if (line.includes('需要浏览') || line.includes('访问网页') || line.includes('打开页面')) {
+    // 检查浏览器工具需求
+    if (line.includes('需要浏览') || line.includes('访问网页') || line.includes('打开页面') || line.includes('浏览')) {
       analysis.needsTools = true;
-      const urlMatch = line.match(/https?:\/\/[^\s]+/);
+      const urlMatch = line.match(/https?:\/\/[^\s\u4e00-\u9fff\]）)}>]+/); // 排除中文字符
       if (urlMatch) {
         analysis.tools.push({
           name: 'browser_navigate',
           args: { url: urlMatch[0] }
         });
       }
+    }
+    
+    // 检查提取内容需求
+    if (line.includes('需要提取内容') || line.includes('提取页面内容') || line.includes('提取页面') || line.includes('提取')) {
+      analysis.needsTools = true;
+      analysis.tools.push({
+        name: 'browser_extract',
+        args: {
+          selectors: {
+            'title': 'title',
+            'heading': 'h1, h2',
+            'content': 'main, article, .content, .post-content, .article-content'
+          },
+          extractType: 'text',
+          multiple: true,
+          timeout: 30000 // 增加超时时间到30秒
+        }
+      });
+    }
+    
+    // 检查点击需求
+    if (line.includes('需要点击')) {
+      analysis.needsTools = true;
+      const selectorMatch = line.match(/需要点击\s*\[([^\]]+)\]/);
+      if (selectorMatch) {
+        analysis.tools.push({
+          name: 'browser_click',
+          args: { selector: selectorMatch[1] }
+        });
+      }
+    }
+    
+    // 检查输入需求
+    if (line.includes('需要输入')) {
+      analysis.needsTools = true;
+      const inputMatch = line.match(/需要输入\s*\[([^\]]+)\]\s*到\s*\[([^\]]+)\]/);
+      if (inputMatch) {
+        analysis.tools.push({
+          name: 'browser_type',
+          args: { text: inputMatch[1], selector: inputMatch[2] }
+        });
+      }
+    }
+    
+    // 检查截图需求
+    if (line.includes('需要截图')) {
+      analysis.needsTools = true;
+      analysis.tools.push({
+        name: 'browser_screenshot',
+        args: {}
+      });
+    }
+    
+    // 检查执行脚本需求
+    if (line.includes('需要执行脚本')) {
+      analysis.needsTools = true;
+      const scriptMatch = line.match(/需要执行脚本\s*\[([^\]]+)\]/);
+      if (scriptMatch) {
+        analysis.tools.push({
+          name: 'browser_evaluate',
+          args: { script: scriptMatch[1] }
+        });
+      }
+    }
+    
+    // 检查获取URL需求
+    if (line.includes('需要获取当前网址') || line.includes('需要获取当前URL')) {
+      analysis.needsTools = true;
+      analysis.tools.push({
+        name: 'browser_get_url',
+        args: {}
+      });
     }
 
     // 检查是否完成
@@ -437,6 +546,11 @@ function parseAgentResponse(content) {
     }
   }
 
+  // 如果有工具调用需求，优先执行工具，忽略完成标识
+  if (analysis.needsTools) {
+    analysis.isComplete = false;
+  }
+  
   // 如果没有明确的完成标识，但也没有工具调用需求，认为是完成
   if (!analysis.needsTools && !analysis.isComplete) {
     analysis.isComplete = true;
@@ -534,6 +648,9 @@ async function initializeAgent(globalOpts, cmdOpts) {
 
   // 启用浏览器工具
   if (cmdOpts.enableBrowser) {
+    // 先启动 MCP 浏览器服务器
+    await startMCPBrowserServer();
+    
     const { MCPBrowserClient } = await import('../src/mcp/browser-client.js');
     agent.browserClient = new MCPBrowserClient();
     await agent.browserClient.connect();

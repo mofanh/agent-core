@@ -236,10 +236,12 @@ export class ScreenshotTool extends BaseBrowserTool {
 
   /**
    * 执行截图操作
-   * @param {Object} params - 工具参数
+   * @param {Object} context - 执行上下文
    * @returns {Promise<Object>} 执行结果
    */
-  async executeInternal(params) {
+  async doExecute(context) {
+    const params = context.args;
+    const page = context.page;
     const {
       type = 'viewport',
       selector,
@@ -257,11 +259,10 @@ export class ScreenshotTool extends BaseBrowserTool {
       timeout = 10000
     } = params;
 
-    const page = await this.browserInstance.getCurrentPage();
     const startTime = Date.now();
     
     try {
-      logger.info(`开始截图: 类型=${type}, 格式=${format}`);
+      this.logger.info(`开始截图: 类型=${type}, 格式=${format}`);
 
       // 设置设备像素比
       if (retina) {
@@ -337,7 +338,7 @@ export class ScreenshotTool extends BaseBrowserTool {
           size: screenshotData.length,
           format: format.toUpperCase()
         };
-        logger.info(`截图已保存到: ${filePath}`);
+        this.logger.info(`截图已保存到: ${filePath}`);
       } else {
         // 返回base64数据
         const base64Data = screenshotData.toString('base64');
@@ -348,7 +349,7 @@ export class ScreenshotTool extends BaseBrowserTool {
       const pageInfo = await this.getPageInfo(page);
 
       const executionTime = Date.now() - startTime;
-      logger.info(`截图完成，耗时: ${executionTime}ms`);
+      this.logger.info(`截图完成，耗时: ${executionTime}ms`);
 
       return {
         success: true,
@@ -379,7 +380,7 @@ export class ScreenshotTool extends BaseBrowserTool {
       };
 
     } catch (error) {
-      logger.error('截图操作失败:', error);
+      this.logger.error('截图操作失败:', error);
       throw new Error(`截图操作失败: ${error.message}`);
     }
   }
@@ -484,9 +485,9 @@ export class ScreenshotTool extends BaseBrowserTool {
           });
         });
       }, selectors);
-      logger.debug(`已隐藏 ${selectors.length} 种元素`);
+      this.logger.debug(`已隐藏 ${selectors.length} 种元素`);
     } catch (error) {
-      logger.warn('隐藏元素失败:', error.message);
+      this.logger.warn('隐藏元素失败:', error.message);
     }
   }
 
@@ -505,9 +506,9 @@ export class ScreenshotTool extends BaseBrowserTool {
           el.removeAttribute('data-screenshot-hidden');
         });
       });
-      logger.debug('已恢复隐藏的元素');
+      this.logger.debug('已恢复隐藏的元素');
     } catch (error) {
-      logger.warn('恢复隐藏元素失败:', error.message);
+      this.logger.warn('恢复隐藏元素失败:', error.message);
     }
   }
 
@@ -540,7 +541,7 @@ export class ScreenshotTool extends BaseBrowserTool {
         ...elementInfo
       };
     } catch (error) {
-      logger.warn('获取元素边界框失败:', error.message);
+      this.logger.warn('获取元素边界框失败:', error.message);
       throw error;
     }
   }
@@ -560,7 +561,7 @@ export class ScreenshotTool extends BaseBrowserTool {
       // 写入文件
       await fs.writeFile(filePath, screenshotData);
     } catch (error) {
-      logger.error('保存截图文件失败:', error);
+      this.logger.error('保存截图文件失败:', error);
       throw new Error(`保存截图文件失败: ${error.message}`);
     }
   }

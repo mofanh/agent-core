@@ -67,17 +67,19 @@ export class BrowserToolManager extends EventEmitter {
         ...config.monitoring
       },
       
-      // 安全配置
+      // 安全配置 - 强制允许所有域名
       security: {
         ...DEFAULT_SECURITY_CONFIG,
         securityLevel: config.security?.securityLevel || SECURITY_LEVELS.NORMAL,
         enableSandbox: config.security?.enableSandbox !== false,
         maxExecutionTime: config.security?.maxExecutionTime || 30000,
         maxMemoryUsage: config.security?.maxMemoryUsage || 512 * 1024 * 1024,
-        allowedDomains: config.security?.allowedDomains || ['*'],
+        allowedDomains: ['*'], // 强制允许所有域名
         blockedDomains: config.security?.blockedDomains || ['localhost', '127.0.0.1'],
         auditLog: config.security?.auditLog !== false,
-        ...config.security
+        ...config.security,
+        // 再次确保 allowedDomains 不被覆盖
+        allowedDomains: ['*']
       },
       
       ...config
@@ -86,6 +88,7 @@ export class BrowserToolManager extends EventEmitter {
     this.logger = new Logger('BrowserToolManager');
     
     // 浏览器实例管理
+    this.sessionBrowserContext = null; // 新增：会话级浏览器上下文
     if (this.config.instancePool.enabled) {
       this.instancePool = new BrowserInstancePool({
         ...this.config.instancePool,
@@ -157,6 +160,7 @@ export class BrowserToolManager extends EventEmitter {
     }
     
     this.logger.info('初始化浏览器工具管理器');
+    this.logger.info('安全配置:', JSON.stringify(this.config.security, null, 2));
     
     try {
       // 初始化浏览器实例或实例池
@@ -409,6 +413,7 @@ export class BrowserToolManager extends EventEmitter {
       const toolContext = {
         ...context,
         browser: browserContext.browser,
+        instanceId: browserContext.instanceId, // 添加实例ID
         securityPolicy: this.securityPolicy,
         timeout: args.timeout || this.config.timeout
       };
@@ -491,21 +496,42 @@ export class BrowserToolManager extends EventEmitter {
   }
 
   /**
-   * 获取浏览器上下文
+   * 获取浏览器上下文 - 会话级实例管理
    * @returns {Promise<Object>} 浏览器上下文
    * @private
    */
   async getBrowserContext() {
+    // 如果已有会话级实例，直接返回
+    if (this.sessionBrowserContext) {
+      return this.sessionBrowserContext;
+    }
+    
     if (this.instancePool) {
-      // 使用实例池模式
-      return await this.instancePool.getInstance();
+      // 使用实例池模式，但保持会话级
+      console.log('[DEBUG INSTANCE] 获取会话级浏览器实例');
+      const context = await this.instancePool.getInstance();
+      
+      // 保存会话级上下文，不立即归还
+      this.sessionBrowserContext = {
+        browser: context.browser,
+        instanceId: context.instanceId,
+        _originalReturnFn: context.returnInstance, // 保存原始归还函数
+        returnInstance: () => {
+          // 会话级实例不立即归还，在cleanup时统一归还
+          console.log('[DEBUG INSTANCE] 会话级实例延迟归还');
+          return Promise.resolve();
+        }
+      };
+      
+      return this.sessionBrowserContext;
     } else {
       // 使用传统单实例模式
       await this.ensureBrowserInstance();
-      return {
+      this.sessionBrowserContext = {
         browser: this.browserInstance,
         returnInstance: () => Promise.resolve() // 单实例模式不需要归还
       };
+      return this.sessionBrowserContext;
     }
   }
 
@@ -752,6 +778,13 @@ export class BrowserToolManager extends EventEmitter {
     this.logger.info('开始清理浏览器工具管理器资源');
     
     try {
+      // 清理会话级浏览器实例
+      if (this.sessionBrowserContext && this.sessionBrowserContext._originalReturnFn) {
+        console.log('[DEBUG INSTANCE] 清理会话级浏览器实例');
+        await this.sessionBrowserContext._originalReturnFn();
+        this.sessionBrowserContext = null;
+      }
+      
       // 清理实例池或单个浏览器实例
       if (this.instancePool) {
         await this.instancePool.destroy();

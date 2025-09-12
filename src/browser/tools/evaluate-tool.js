@@ -228,10 +228,12 @@ export class EvaluateTool extends BaseBrowserTool {
 
   /**
    * 执行JavaScript代码
-   * @param {Object} params - 工具参数
+   * @param {Object} context - 执行上下文  
    * @returns {Promise<Object>} 执行结果
    */
-  async executeInternal(params) {
+  async doExecute(context) {
+    const params = context.args;
+    const page = context.page;
     const {
       script,
       args = [],
@@ -241,17 +243,16 @@ export class EvaluateTool extends BaseBrowserTool {
       sandbox = true,
       allowDangerousAPIs = false,
       injectLibraries = [],
-      context = 'page',
+      context: executionContext = 'page',
       selector,
       selectorType = 'auto',
       waitForResult = true
     } = params;
 
-    const page = await this.browserInstance.getCurrentPage();
     const startTime = Date.now();
     
     try {
-      logger.info(`开始执行JavaScript: 上下文=${context}, 异步=${isAsync}`);
+      this.logger.info(`开始执行JavaScript: 上下文=${executionContext}, 异步=${isAsync}`);
 
       // 注入依赖库
       if (injectLibraries.length > 0) {
@@ -260,7 +261,7 @@ export class EvaluateTool extends BaseBrowserTool {
 
       let result;
       
-      switch (context) {
+      switch (executionContext) {
         case 'page':
           result = await this.executeInPageContext(page, script, args, {
             returnValue, isAsync, timeout, sandbox, waitForResult
@@ -280,11 +281,11 @@ export class EvaluateTool extends BaseBrowserTool {
           break;
           
         default:
-          throw new Error(`不支持的执行上下文: ${context}`);
+          throw new Error(`不支持的执行上下文: ${executionContext}`);
       }
 
       const executionTime = Date.now() - startTime;
-      logger.info(`JavaScript执行完成，耗时: ${executionTime}ms`);
+      this.logger.info(`JavaScript执行完成，耗时: ${executionTime}ms`);
 
       return {
         success: true,
@@ -310,7 +311,7 @@ export class EvaluateTool extends BaseBrowserTool {
       };
 
     } catch (error) {
-      logger.error('JavaScript执行失败:', error);
+      this.logger.error('JavaScript执行失败:', error);
       throw new Error(`JavaScript执行失败: ${error.message}`);
     }
   }
@@ -544,9 +545,9 @@ export class EvaluateTool extends BaseBrowserTool {
       if (libraryUrls[lib]) {
         try {
           await page.addScriptTag({ url: libraryUrls[lib] });
-          logger.debug(`已注入库: ${lib}`);
+          this.logger.debug(`已注入库: ${lib}`);
         } catch (error) {
-          logger.warn(`注入库 ${lib} 失败:`, error.message);
+          this.logger.warn(`注入库 ${lib} 失败:`, error.message);
         }
       }
     }

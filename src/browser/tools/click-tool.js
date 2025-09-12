@@ -198,10 +198,12 @@ export class ClickTool extends BaseBrowserTool {
 
   /**
    * 执行点击操作
-   * @param {Object} params - 工具参数
+   * @param {Object} context - 执行上下文
    * @returns {Promise<Object>} 执行结果
    */
-  async executeInternal(params) {
+  async doExecute(context) {
+    const params = context.args;
+    const page = context.page;
     const {
       selector,
       selectorType = 'auto',
@@ -216,7 +218,6 @@ export class ClickTool extends BaseBrowserTool {
       force = false
     } = params;
 
-    const page = await this.browserInstance.getCurrentPage();
     const startTime = Date.now();
     
     try {
@@ -225,7 +226,7 @@ export class ClickTool extends BaseBrowserTool {
         ? detectSelectorType(selector) 
         : selectorType;
 
-      logger.info(`开始点击元素: ${selector} (类型: ${finalSelectorType}, 索引: ${index})`);
+      this.logger.info(`开始点击元素: ${selector} (类型: ${finalSelectorType}, 索引: ${index})`);
 
       // 等待元素出现
       let element;
@@ -259,14 +260,14 @@ export class ClickTool extends BaseBrowserTool {
         }
 
         if (!elementInfo.enabled) {
-          logger.warn('元素已禁用，但仍将尝试点击');
+          this.logger.warn('元素已禁用，但仍将尝试点击');
         }
       }
 
       // 滚动到元素位置
       if (scrollIntoView) {
         await element.scrollIntoView();
-        logger.debug('已滚动到元素位置');
+        this.logger.debug('已滚动到元素位置');
         
         // 等待滚动完成
         await page.waitForTimeout(100);
@@ -326,14 +327,14 @@ export class ClickTool extends BaseBrowserTool {
       if (waitForNavigation) {
         try {
           await navigationPromise;
-          logger.debug('页面导航完成');
+          this.logger.debug('页面导航完成');
         } catch (error) {
-          logger.warn('等待导航超时，继续执行');
+          this.logger.warn('等待导航超时，继续执行');
         }
       }
 
       const executionTime = Date.now() - startTime;
-      logger.info(`点击操作完成，耗时: ${executionTime}ms`);
+      this.logger.info(`点击操作完成，耗时: ${executionTime}ms`);
 
       // 获取点击后的页面状态
       const afterClickInfo = await this.getClickResult(page, element);
@@ -356,7 +357,7 @@ export class ClickTool extends BaseBrowserTool {
       };
 
     } catch (error) {
-      logger.error('点击操作失败:', error);
+      this.logger.error('点击操作失败:', error);
       throw new Error(`点击操作失败: ${error.message}`);
     }
   }
@@ -442,7 +443,7 @@ export class ClickTool extends BaseBrowserTool {
 
       return info;
     } catch (error) {
-      logger.warn('获取元素信息失败:', error.message);
+      this.logger.warn('获取元素信息失败:', error.message);
       return {
         tagName: 'unknown',
         visible: false,
@@ -472,7 +473,7 @@ export class ClickTool extends BaseBrowserTool {
 
       return pageInfo;
     } catch (error) {
-      logger.warn('获取点击结果失败:', error.message);
+      this.logger.warn('获取点击结果失败:', error.message);
       return {
         url: 'unknown',
         title: 'unknown',

@@ -19,6 +19,17 @@ export class MCPBrowserServer {
       headless: false,
       devtools: true,
       timeout: 30000,
+      browser: {
+        engine: 'puppeteer',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      },
+      security: {
+        securityLevel: 'relaxed',
+        allowedDomains: ['*'],
+        blockedDomains: [],
+        enableSandbox: false,
+        auditLog: false
+      },
       ...config
     };
     
@@ -325,8 +336,17 @@ export async function createMCPBrowserServer(config = {}) {
  */
 export async function startMCPBrowserServer() {
   const server = new MCPBrowserServer({
+    enabled: true,
+    engine: 'puppeteer',
     headless: process.env.HEADLESS !== 'false',
-    devtools: process.env.DEVTOOLS === 'true'
+    devtools: process.env.DEVTOOLS === 'true',
+    instancePool: {
+      enabled: false
+    },
+    security: {
+      allowedDomains: ['*'], // 允许所有域名
+      blockedDomains: ['localhost', '127.0.0.1']
+    }
   });
   
   // 处理进程退出

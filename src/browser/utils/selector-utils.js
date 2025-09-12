@@ -20,8 +20,12 @@ export function isValidCSSSelector(selector) {
       return CSS.supports('selector(' + selector + ')');
     }
     
-    // 备用验证：检查基本格式
-    return /^[a-zA-Z0-9\s\.\#\[\]\:\-\>\+\~\(\)\,\*\"\'=]+$/.test(selector);
+    // Node.js环境的备用验证：检查CSS选择器特征
+    // 允许常见的CSS选择器字符，包括下划线
+    const cssPattern = /^[a-zA-Z0-9\s\.\#\[\]\:\-\>\+\~\(\)\,\*\"\'=_]+$/;
+    const hasCSSFeatures = /[.#][\w-]|[\[\]:>+~,]/.test(selector);
+    
+    return cssPattern.test(selector) && (hasCSSFeatures || /^[a-zA-Z][\w-]*$/.test(selector.trim()));
   } catch (error) {
     return false;
   }
@@ -37,9 +41,24 @@ export function isValidXPathSelector(selector) {
     return false;
   }
   
-  // XPath通常以 / 或 // 开头，或者包含XPath函数
-  return /^(\/\/|\/|\.|\.\.|\w+\()/gi.test(selector) ||
-         /contains\(|text\(\)|@\w+|following-sibling|preceding-sibling/gi.test(selector);
+  // 更严格的XPath检测
+  // XPath必须以/或//开头，或包含明确的XPath轴和函数
+  const startsWithPath = /^(\/\/|\/(?=\w))/.test(selector);
+  const hasXPathFunctions = /\b(contains|text|position|last|count|normalize-space|substring)\s*\(/.test(selector);
+  const hasXPathAxes = /\b(ancestor|ancestor-or-self|attribute|child|descendant|descendant-or-self|following|following-sibling|namespace|parent|preceding|preceding-sibling|self)::|@[\w-]+/.test(selector);
+  
+  // 检查是否是XPath轴表达式（如 descendant::div）
+  const isAxisExpression = /^\w+::/.test(selector);
+  
+  // 排除明显的CSS选择器特征
+  const hasCSSFeatures = /^[.#][\w-]|[,>\+~\[\]]/.test(selector);
+  
+  // 如果有CSS特征，不是XPath（除非有明确的XPath特征）
+  if (hasCSSFeatures && !startsWithPath && !hasXPathFunctions && !hasXPathAxes && !isAxisExpression) {
+    return false;
+  }
+  
+  return startsWithPath || hasXPathFunctions || hasXPathAxes || isAxisExpression;
 }
 
 /**
@@ -52,14 +71,24 @@ export function detectSelectorType(selector) {
     return 'unknown';
   }
   
-  // 检查是否为XPath
-  if (isValidXPathSelector(selector)) {
+  // 先检查XPath的强特征（明确的XPath语法）
+  const hasStrongXPathFeatures = /^(\/\/|\/)/.test(selector) || 
+    /\b(contains|text|position|last|count)\s*\(/.test(selector) ||
+    /^\w+::/.test(selector) ||
+    /@[\w-]+/.test(selector);
+    
+  if (hasStrongXPathFeatures && isValidXPathSelector(selector)) {
     return 'xpath';
   }
   
-  // 检查是否为CSS
+  // 然后检查CSS
   if (isValidCSSSelector(selector)) {
     return 'css';
+  }
+  
+  // 最后检查弱XPath特征
+  if (isValidXPathSelector(selector)) {
+    return 'xpath';
   }
   
   return 'unknown';
