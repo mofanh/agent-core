@@ -5,8 +5,8 @@
  * 基于 test-simplified-agent-cli.js 的成功经验重新实现
  */
 
-import { AgentCore, createSparkLLM } from './src/index.js';
-import { BrowserToolManager } from './src/browser/tool-manager.js';
+import { AgentCore, createSparkLLM } from '../src/index.js';
+import { BrowserToolManager } from '../src/browser/tool-manager.js';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
