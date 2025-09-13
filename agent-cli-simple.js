@@ -106,7 +106,8 @@ async function runSimpleExecMode(query, options) {
               multiple: false,
               timeout: 10000
             });
-            
+            console.log('完整提取响应:', JSON.stringify(extractResponse, null, 2));
+
             const extractResult = extractResponse.data.data;
             const results = extractResult.results || extractResult;
             
@@ -167,7 +168,6 @@ async function analyzeTask(llm, query, hasBrowserTools, iteration, maxIterations
 
 可用工具:
 🌐 浏览器工具: 可以访问网页、提取内容、进行网页操作
-
 使用格式：
 - 访问网页: 在回答中明确提到需要访问的具体网址
 - 提取内容: 说明需要提取网页内容进行分析` : '';
@@ -184,6 +184,7 @@ ${toolsInfo}
 2. 如果需要访问网页，明确说明需要访问哪个网址
 3. 提供当前能给出的分析或答案
 4. 如果任务需要多步骤，说明下一步计划
+5. 如果任务已经完成，明确指出"任务完成"
 
 注意：如果用户要求访问网页并总结，请务必明确指出需要访问的URL。`;
 
