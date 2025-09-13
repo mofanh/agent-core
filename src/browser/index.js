@@ -21,6 +21,7 @@ export { NavigateTool } from './tools/navigate-tool.js';
 export { ClickTool } from './tools/click-tool.js';
 export { ExtractTool } from './tools/extract-tool.js';
 export { TypeTool } from './tools/type-tool.js';
+export { HoverTool } from './tools/hover-tool.js';
 export { ScreenshotTool } from './tools/screenshot-tool.js';
 export { EvaluateTool } from './tools/evaluate-tool.js';
 
@@ -47,6 +48,7 @@ export const BROWSER_TOOLS = {
   CLICK: 'browser.click',
   EXTRACT: 'browser.extract',
   TYPE: 'browser.type',
+  HOVER: 'browser.hover',
   SCREENSHOT: 'browser.screenshot',
   EVALUATE: 'browser.evaluate'
 };

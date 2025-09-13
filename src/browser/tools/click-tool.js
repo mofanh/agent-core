@@ -228,60 +228,50 @@ export class ClickTool extends BaseBrowserTool {
 
       this.logger.info(`开始点击元素: ${selector} (类型: ${finalSelectorType}, 索引: ${index})`);
 
-      // 等待元素出现
-      let element;
-      if (waitForElement) {
-        element = await this.waitForElementBySelector(
-          page, 
-          selector, 
-          finalSelectorType, 
-          index, 
-          timeout
-        );
+      // 使用 Locator API 进行现代化的元素交互
+      let locator;
+      if (finalSelectorType === 'xpath') {
+        // XPath 选择器需要特殊处理
+        locator = page.locator(`::-p-xpath(${selector})`);
       } else {
-        element = await this.findElementBySelector(
-          page, 
-          selector, 
-          finalSelectorType, 
-          index
-        );
+        // CSS 选择器直接使用
+        locator = page.locator(selector);
       }
 
-      if (!element) {
-        throw new Error(`未找到匹配的元素: ${selector}`);
+      // 如果有多个匹配元素且需要特定索引，使用 nth
+      if (index > 0) {
+        locator = locator.nth(index);
       }
 
-      // 检查元素可见性和可点击性
+      // 配置 locator 的行为选项
       if (!force) {
-        const elementInfo = await this.getElementInfo(element);
-        
-        if (!elementInfo.visible) {
-          throw new Error('元素不可见，无法点击');
-        }
-
-        if (!elementInfo.enabled) {
-          this.logger.warn('元素已禁用，但仍将尝试点击');
-        }
+        // 默认 locator 已经包含了可见性和启用状态检查
+        locator = locator.setVisibility('visible').setWaitForEnabled(true);
+      } else {
+        // 强制模式：跳过可见性和启用状态检查
+        locator = locator
+          .setVisibility(null)
+          .setWaitForEnabled(false)
+          .setEnsureElementIsInTheViewport(false)
+          .setWaitForStableBoundingBox(false);
       }
 
-      // 滚动到元素位置
-      if (scrollIntoView) {
-        await element.scrollIntoView();
-        this.logger.debug('已滚动到元素位置');
-        
-        // 等待滚动完成
-        await page.waitForTimeout(100);
-      }
+      // 设置超时
+      locator = locator.setTimeout(timeout);
 
-      // 获取元素位置和尺寸
-      const boundingBox = await element.boundingBox();
-      if (!boundingBox && !force) {
-        throw new Error('无法获取元素位置信息');
-      }
+      // 设置滚动行为
+      locator = locator.setEnsureElementIsInTheViewport(scrollIntoView);
 
-      // 计算点击坐标
-      const clickX = boundingBox ? boundingBox.x + boundingBox.width / 2 + offset.x : 0;
-      const clickY = boundingBox ? boundingBox.y + boundingBox.height / 2 + offset.y : 0;
+      // 准备点击选项
+      const clickOptions = {
+        button: this.getClickButton(clickType),
+        count: clickType === 'double' ? 2 : 1
+      };
+
+      // 添加偏移量
+      if (offset.x !== 0 || offset.y !== 0) {
+        clickOptions.offset = offset;
+      }
 
       // 设置导航等待
       const navigationPromise = waitForNavigation 
@@ -291,14 +281,6 @@ export class ClickTool extends BaseBrowserTool {
           })
         : Promise.resolve();
 
-      // 执行点击
-      let clickResult;
-      const clickOptions = {
-        button: this.getClickButton(clickType),
-        clickCount: clickType === 'double' ? 2 : 1,
-        delay: clickType === 'double' ? 0 : undefined
-      };
-
       // 添加修饰符
       if (modifiers.length > 0) {
         for (const modifier of modifiers) {
@@ -306,13 +288,44 @@ export class ClickTool extends BaseBrowserTool {
         }
       }
 
+      let clickResult;
+      let clickMethod = 'locator';
+      
       try {
+        // 使用 Locator API 进行点击
+        await locator.click(clickOptions);
+        clickResult = true;
+        
+        this.logger.debug(`成功使用 Locator API 点击元素: ${selector}`);
+      } catch (locatorError) {
+        // 如果 Locator API 失败，回退到传统方法
+        this.logger.warn(`Locator API 点击失败，回退到传统方法: ${locatorError.message}`);
+        clickMethod = 'fallback';
+        
+        const element = await this.findElementBySelector(page, selector, finalSelectorType, index);
+        if (!element) {
+          throw new Error(`未找到匹配的元素: ${selector}`);
+        }
+
+        // 传统方法：获取元素位置并点击
+        const boundingBox = await element.boundingBox();
         if (boundingBox) {
-          // 在指定坐标点击
-          clickResult = await page.mouse.click(clickX, clickY, clickOptions);
+          const clickX = boundingBox.x + boundingBox.width / 2 + offset.x;
+          const clickY = boundingBox.y + boundingBox.height / 2 + offset.y;
+          
+          const mouseOptions = {
+            button: this.getClickButton(clickType),
+            clickCount: clickType === 'double' ? 2 : 1
+          };
+          
+          await page.mouse.click(clickX, clickY, mouseOptions);
+          clickResult = { x: clickX, y: clickY };
         } else {
-          // 直接点击元素
-          clickResult = await element.click(clickOptions);
+          await element.click({
+            button: this.getClickButton(clickType),
+            clickCount: clickType === 'double' ? 2 : 1
+          });
+          clickResult = true;
         }
       } finally {
         // 释放修饰符
@@ -336,8 +349,15 @@ export class ClickTool extends BaseBrowserTool {
       const executionTime = Date.now() - startTime;
       this.logger.info(`点击操作完成，耗时: ${executionTime}ms`);
 
-      // 获取点击后的页面状态
-      const afterClickInfo = await this.getClickResult(page, element);
+      // 获取点击后的页面信息
+      const pageInfo = await page.evaluate(() => ({
+        url: window.location.href,
+        title: document.title,
+        scrollPosition: {
+          x: window.scrollX,
+          y: window.scrollY
+        }
+      }));
 
       return {
         success: true,
@@ -346,11 +366,11 @@ export class ClickTool extends BaseBrowserTool {
           selectorType: finalSelectorType,
           index,
           clickType,
-          coordinates: { x: clickX, y: clickY },
-          elementInfo: await this.getElementInfo(element),
-          afterClick: afterClickInfo,
-          modifiers,
-          navigationOccurred: waitForNavigation
+          coordinates: typeof clickResult === 'object' ? clickResult : null,
+          pageInfo,
+          navigationCompleted: waitForNavigation,
+          method: clickMethod,
+          modifiersUsed: modifiers
         },
         timestamp: new Date().toISOString(),
         executionTime
@@ -358,7 +378,23 @@ export class ClickTool extends BaseBrowserTool {
 
     } catch (error) {
       this.logger.error('点击操作失败:', error);
-      throw new Error(`点击操作失败: ${error.message}`);
+      
+      const executionTime = Date.now() - startTime;
+      
+      return {
+        success: false,
+        error: `点击失败: ${error.message}`,
+        data: {
+          selector,
+          selectorType: selectorType === 'auto' 
+            ? detectSelectorType(selector) 
+            : selectorType,
+          index,
+          clickType
+        },
+        timestamp: new Date().toISOString(),
+        executionTime
+      };
     }
   }
 

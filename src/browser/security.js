@@ -401,7 +401,7 @@ export class BrowserSecurityManager {
       config: {
         maxExecutionTime: options.maxExecutionTime || this.config.maxExecutionTime,
         maxMemoryUsage: options.maxMemoryUsage || this.config.maxMemoryUsage,
-        permissions: options.permissions || ['navigate', 'extract', 'interact'],
+        permissions: options.permissions || ['navigate', 'extract', 'interact', 'click', 'hover', 'type'],
         sandbox: options.sandbox !== false && this.config.enableSandbox
       },
       stats: {

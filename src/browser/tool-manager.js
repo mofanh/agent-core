@@ -138,6 +138,7 @@ export class BrowserToolManager extends EventEmitter {
       [BROWSER_TOOLS.CLICK]: () => import('./tools/click-tool.js').then(m => m.ClickTool),
       [BROWSER_TOOLS.EXTRACT]: () => import('./tools/extract-tool.js').then(m => m.ExtractTool),
       [BROWSER_TOOLS.TYPE]: () => import('./tools/type-tool.js').then(m => m.TypeTool),
+      [BROWSER_TOOLS.HOVER]: () => import('./tools/hover-tool.js').then(m => m.HoverTool),
       [BROWSER_TOOLS.SCREENSHOT]: () => import('./tools/screenshot-tool.js').then(m => m.ScreenshotTool),
       [BROWSER_TOOLS.EVALUATE]: () => import('./tools/evaluate-tool.js').then(m => m.EvaluateTool)
     };
@@ -362,7 +363,7 @@ export class BrowserToolManager extends EventEmitter {
       // 现代安全管理器验证
       const securitySession = this.securityManager.createSecureSession({
         maxExecutionTime: this.config.security.maxExecutionTime,
-        permissions: ['navigate', 'extract', 'interact', 'evaluate']
+        permissions: ['navigate', 'extract', 'interact', 'evaluate', 'capture']
       });
       
       const permissionCheck = this.securityManager.validateSessionPermission(
@@ -741,6 +742,7 @@ export class BrowserToolManager extends EventEmitter {
       [BROWSER_TOOLS.NAVIGATE]: 'navigate',
       [BROWSER_TOOLS.EXTRACT]: 'extract',
       [BROWSER_TOOLS.CLICK]: 'interact',
+      [BROWSER_TOOLS.HOVER]: 'interact',
       [BROWSER_TOOLS.TYPE]: 'interact',
       [BROWSER_TOOLS.SCROLL]: 'interact',
       [BROWSER_TOOLS.WAIT]: 'interact',

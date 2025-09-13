@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浏览器工具测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #f0f0f0;
+        }
+        input, textarea {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        .hover-area {
+            width: 200px;
+            height: 100px;
+            background-color: #e0e0e0;
+            border: 2px solid #ccc;
+            text-align: center;
+            line-height: 100px;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+        .hover-area:hover {
+            background-color: #ffcc00;
+            border-color: #ff9900;
+        }
+        .clicked {
+            background-color: #90EE90;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <h1>浏览器工具测试页面 - Locator API 优化版本</h1>
+    
+    <div class="test-section">
+        <h2>点击测试</h2>
+        <button id="test-button1" onclick="handleClick(this, '按钮1被点击')">测试按钮 1</button>
+        <button id="test-button2" onclick="handleClick(this, '按钮2被点击')">测试按钮 2</button>
+        <button class="special-btn" onclick="handleClick(this, '特殊按钮被点击')">特殊按钮</button>
+        <button disabled>禁用按钮</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>悬停测试</h2>
+        <div class="hover-area" id="hover-area1" onmouseover="handleHover(this, '悬停区域1')">
+            悬停在这里 (区域1)
+        </div>
+        <div class="hover-area" id="hover-area2" onmouseover="handleHover(this, '悬停区域2')">
+            悬停在这里 (区域2)
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>文本输入测试</h2>
+        <p>
+            <label>文本输入框:</label>
+            <input type="text" id="text-input" placeholder="请输入文本">
+        </p>
+        <p>
+            <label>密码输入框:</label>
+            <input type="password" id="password-input" placeholder="请输入密码">
+        </p>
+        <p>
+            <label>文本区域:</label><br>
+            <textarea id="textarea-input" rows="4" cols="50" placeholder="请输入多行文本"></textarea>
+        </p>
+        <p>
+            <label>选择框:</label>
+            <select id="select-input">
+                <option value="">请选择</option>
+                <option value="option1">选项1</option>
+                <option value="option2">选项2</option>
+                <option value="option3">选项3</option>
+            </select>
+        </p>
+    </div>
+    
+    <div class="test-section">
+        <h2>XPath 选择器测试</h2>
+        <div data-testid="xpath-test">
+            <button onclick="handleClick(this, 'XPath按钮被点击')">XPath测试按钮</button>
+            <span class="xpath-text">这是XPath文本</span>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>链接测试</h2>
+        <a href="#" onclick="handleClick(this, '链接被点击'); return false;">测试链接</a>
+        <a href="javascript:void(0)" onclick="handleClick(this, '另一个链接被点击')">另一个链接</a>
+    </div>
+    
+    <div id="result">
+        <h3>操作结果:</h3>
+        <p id="result-text">等待操作...</p>
+    </div>
+
+    <script>
+        function handleClick(element, message) {
+            element.classList.add('clicked');
+            updateResult(message);
+            setTimeout(() => {
+                element.classList.remove('clicked');
+            }, 1000);
+        }
+        
+        function handleHover(element, message) {
+            updateResult(message);
+        }
+        
+        function updateResult(message) {
+            const resultText = document.getElementById('result-text');
+            const timestamp = new Date().toLocaleTimeString();
+            resultText.innerHTML = `[${timestamp}] ${message}`;
+        }
+        
+        // 监听输入事件
+        document.getElementById('text-input').addEventListener('input', function(e) {
+            updateResult(`文本输入: ${e.target.value}`);
+        });
+        
+        document.getElementById('password-input').addEventListener('input', function(e) {
+            updateResult(`密码输入: ${e.target.value.replace(/./g, '*')}`);
+        });
+        
+        document.getElementById('textarea-input').addEventListener('input', function(e) {
+            updateResult(`文本区域输入: ${e.target.value}`);
+        });
+        
+        document.getElementById('select-input').addEventListener('change', function(e) {
+            updateResult(`选择框改变: ${e.target.value}`);
+        });
+    </script>
+</body>
+</html>

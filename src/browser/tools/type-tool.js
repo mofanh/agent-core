@@ -219,99 +219,146 @@ export class TypeTool extends BaseBrowserTool {
 
       this.logger.info(`开始文本输入: "${text}" 到元素 ${selector} (索引: ${index})`);
 
-      // 等待元素出现
-      let element;
-      if (waitForElement) {
-        element = await this.waitForElementBySelector(
-          page, 
-          selector, 
-          finalSelectorType, 
-          index, 
-          timeout
-        );
+      // 使用 Locator API 进行现代化的文本输入
+      let locator;
+      if (finalSelectorType === 'xpath') {
+        // XPath 选择器需要特殊处理
+        locator = page.locator(`::-p-xpath(${selector})`);
       } else {
-        element = await this.findElementBySelector(
-          page, 
-          selector, 
-          finalSelectorType, 
-          index
-        );
+        // CSS 选择器直接使用
+        locator = page.locator(selector);
       }
 
-      if (!element) {
-        throw new Error(`未找到匹配的元素: ${selector}`);
+      // 如果有多个匹配元素且需要特定索引，使用 nth
+      if (index > 0) {
+        locator = locator.nth(index);
       }
 
-      // 获取元素信息
-      const elementInfo = await this.getElementInfo(element);
-      
-      // 验证元素是否可输入
-      if (!this.isInputElement(elementInfo)) {
-        this.logger.warn(`元素可能不支持文本输入: ${elementInfo.tagName}`);
-      }
+      // 配置 locator 的行为选项
+      locator = locator
+        .setVisibility('visible')      // 确保元素可见
+        .setWaitForEnabled(true)       // 等待元素启用
+        .setTimeout(timeout)           // 设置超时
+        .setEnsureElementIsInTheViewport(true); // 确保元素在视口中
 
-      // 检查元素是否可见和启用
-      if (!elementInfo.visible) {
-        throw new Error('目标元素不可见');
-      }
-
-      if (!elementInfo.enabled) {
-        throw new Error('目标元素已禁用');
-      }
-
-      // 滚动到元素位置
-      await element.scrollIntoView();
-      await page.waitForTimeout(100);
-
-      // 聚焦元素
-      if (focusFirst) {
-        await element.focus();
-        await page.waitForTimeout(100);
-        this.logger.debug('已聚焦目标元素');
-      }
-
-      // 获取输入前的值
-      const beforeValue = await this.getElementValue(element);
-
-      // 清空现有内容
-      if (clearBefore && beforeValue) {
-        await this.clearElementContent(element, elementInfo);
-        this.logger.debug('已清空元素原有内容');
-      }
-
-      // 执行文本输入
       let inputResult;
-      switch (inputMode) {
-        case 'paste':
-          inputResult = await this.pasteText(page, text);
-          break;
-        case 'setValue':
-          inputResult = await this.setElementValue(element, text);
-          break;
-        case 'type':
-        default:
-          inputResult = await this.typeText(element, text, typeSpeed);
-          break;
-      }
+      let inputMethod = 'locator';
 
-      // 按回车键
-      if (pressEnter) {
-        await page.keyboard.press('Enter');
+      try {
+        // 使用 Locator API 进行文本输入
+        if (clearBefore) {
+          // Locator.fill() 自动清空并填入新内容
+          await locator.fill(text);
+        } else {
+          // 如果不需要清空，先获取当前值再追加
+          const currentValue = await locator.inputValue().catch(() => '');
+          await locator.fill(currentValue + text);
+        }
+        
+        inputResult = true;
+        this.logger.debug(`成功使用 Locator API 输入文本: ${text}`);
+        
+        // 按回车键
+        if (pressEnter) {
+          await page.keyboard.press('Enter');
+          await page.waitForTimeout(100);
+        }
+        
+      } catch (locatorError) {
+        // 如果 Locator API 失败，回退到传统方法
+        this.logger.warn(`Locator API 输入失败，回退到传统方法: ${locatorError.message}`);
+        inputMethod = 'fallback';
+        
+        // 查找元素
+        const element = await this.findElementBySelector(page, selector, finalSelectorType, index);
+        if (!element) {
+          throw new Error(`未找到匹配的元素: ${selector}`);
+        }
+
+        // 获取元素信息
+        const elementInfo = await this.getElementInfo(element);
+        
+        // 验证元素是否可输入
+        if (!this.isInputElement(elementInfo)) {
+          this.logger.warn(`元素可能不支持文本输入: ${elementInfo.tagName}`);
+        }
+
+        // 检查元素是否可见和启用
+        if (!elementInfo.visible) {
+          throw new Error('目标元素不可见');
+        }
+
+        if (!elementInfo.enabled) {
+          throw new Error('目标元素已禁用');
+        }
+
+        // 滚动到元素位置
+        await element.scrollIntoView();
         await page.waitForTimeout(100);
-        this.logger.debug('已按下回车键');
+
+        // 聚焦元素
+        if (focusFirst) {
+          await element.focus();
+          await page.waitForTimeout(100);
+          this.logger.debug('已聚焦目标元素');
+        }
+
+        // 获取输入前的值
+        const beforeValue = await this.getElementValue(element);
+
+        // 清空现有内容
+        if (clearBefore && beforeValue) {
+          await this.clearElementContent(element, elementInfo);
+          this.logger.debug('已清空元素原有内容');
+        }
+
+        // 执行文本输入
+        switch (inputMode) {
+          case 'paste':
+            inputResult = await this.pasteText(page, text);
+            break;
+          case 'setValue':
+            inputResult = await this.setElementValue(element, text);
+            break;
+          case 'type':
+          default:
+            inputResult = await this.typeText(element, text, typeSpeed);
+            break;
+        }
+
+        // 按回车键
+        if (pressEnter) {
+          await page.keyboard.press('Enter');
+          await page.waitForTimeout(100);
+        }
       }
 
-      // 获取输入后的值
-      const afterValue = await this.getElementValue(element);
-
-      // 验证输入结果
-      let validationResult = { success: true, message: '输入成功' };
-      if (validateInput) {
-        validationResult = this.validateInputResult(text, afterValue, clearBefore);
+      // 获取输入后的值进行验证
+      let finalValue = '';
+      try {
+        if (inputMethod === 'locator') {
+          finalValue = await locator.inputValue().catch(() => '');
+        } else {
+          const element = await this.findElementBySelector(page, selector, finalSelectorType, index);
+          if (element) {
+            finalValue = await this.getElementValue(element);
+          }
+        }
+      } catch (error) {
+        this.logger.warn('无法获取输入后的值:', error.message);
       }
 
       const executionTime = Date.now() - startTime;
       this.logger.info(`文本输入完成，耗时: ${executionTime}ms`);
+
+      // 验证输入结果
+      const inputSuccess = validateInput 
+        ? finalValue.includes(text) 
+        : true;
+
+      if (!inputSuccess) {
+        this.logger.warn(`输入验证失败: 期望包含 "${text}", 实际值 "${finalValue}"`);
+      }
 
       return {
         success: true,
@@ -320,17 +367,12 @@ export class TypeTool extends BaseBrowserTool {
           selectorType: finalSelectorType,
           index,
           inputText: text,
+          finalValue,
+          inputSuccess,
+          method: inputMethod,
+          pressedEnter: pressEnter,
           inputMode,
-          beforeValue,
-          afterValue,
-          elementInfo,
-          validation: validationResult,
-          settings: {
-            clearBefore,
-            typeSpeed,
-            pressEnter,
-            focusFirst
-          }
+          cleared: clearBefore
         },
         timestamp: new Date().toISOString(),
         executionTime
@@ -338,7 +380,24 @@ export class TypeTool extends BaseBrowserTool {
 
     } catch (error) {
       this.logger.error('文本输入失败:', error);
-      throw new Error(`文本输入失败: ${error.message}`);
+      
+      const executionTime = Date.now() - startTime;
+      
+      return {
+        success: false,
+        error: `文本输入失败: ${error.message}`,
+        data: {
+          selector,
+          selectorType: selectorType === 'auto' 
+            ? detectSelectorType(selector) 
+            : selectorType,
+          index,
+          inputText: text,
+          inputMode
+        },
+        timestamp: new Date().toISOString(),
+        executionTime
+      };
     }
   }
 
