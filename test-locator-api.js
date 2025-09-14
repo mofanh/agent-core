@@ -5,9 +5,14 @@
  */
 
 import { AgentCore } from './src/index.js';
-import Logger from './src/utils/logger.js';
-
-const logger = new Logger('BrowserLocatorTest');
+import Logger from './src/utils/logger.js'        if (typeResult.success) {
+          console.log(`   ✅ ${test.desc} - 成功`);
+          console.log(`      方法: ${typeResult.data?.data?.method || '未知'}`);
+          console.log(`      输入文本: ${test.text}`);
+          console.log(`      最终值: ${typeResult.data?.data?.finalValue || '未知'}`);
+        } else {
+          console.log(`   ❌ ${test.desc} - 失败:`, typeResult.error);
+        } logger = new Logger('BrowserLocatorTest');
 
 async function testBrowserToolsLocatorAPI() {
   console.log('\n🚀 开始测试优化后的浏览器工具 (Locator API)...\n');
@@ -101,9 +106,9 @@ async function testBrowserToolsLocatorAPI() {
         
         if (hoverResult.success) {
           console.log(`   ✅ ${test.desc} - 成功`);
-          console.log(`      方法: ${hoverResult.data.method}`);
-          if (hoverResult.data.coordinates) {
-            console.log(`      坐标: (${hoverResult.data.coordinates.x}, ${hoverResult.data.coordinates.y})`);
+          console.log(`      方法: ${hoverResult.data?.data?.method || '未知'}`);
+          if (hoverResult.data?.data?.coordinates) {
+            console.log(`      坐标: (${hoverResult.data.data.coordinates.x}, ${hoverResult.data.data.coordinates.y})`);
           }
         } else {
           console.log(`   ❌ ${test.desc} - 失败:`, hoverResult.error);
@@ -161,6 +166,45 @@ async function testBrowserToolsLocatorAPI() {
       }
     }
 
+    // 4.1. 测试下拉选择框
+    console.log('\n📋 测试4.1: 下拉选择框测试...');
+    
+    const selectTests = [
+      { selector: '#select-input', value: 'option1', desc: '选择选项1' },
+      { selector: '#select-input', value: 'option2', desc: '选择选项2' },
+      { selector: '#select-input', value: 'option3', desc: '选择选项3' }
+    ];
+
+    for (const test of selectTests) {
+      try {
+        console.log(`   测试: ${test.desc}`);
+        
+        // 使用点击方式打开下拉框
+        const clickResult = await agent.handleToolCall('browser.click', {
+          selector: test.selector,
+          timeout: 5000
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // 选择特定选项
+        const selectResult = await agent.handleToolCall('browser.click', {
+          selector: `#select-input option[value="${test.value}"]`,
+          timeout: 5000
+        });
+        
+        if (selectResult.success) {
+          console.log(`   ✅ ${test.desc} - 成功`);
+        } else {
+          console.log(`   ❌ ${test.desc} - 失败:`, selectResult.error);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.log(`   ❌ ${test.desc} - 异常:`, error.message);
+      }
+    }
+
     // 5. 测试内容提取
     console.log('\n📊 测试5: 内容提取...');
     const extractResult = await agent.handleToolCall('browser.extract', {
@@ -183,6 +227,120 @@ async function testBrowserToolsLocatorAPI() {
       console.log(`      结果文本: ${results.result?.elements?.[0] || '未找到'}`);
     } else {
       console.log('   ❌ 内容提取失败:', extractResult.error);
+    }
+
+    // 5.1. 测试 XPath 选择器
+    console.log('\n🎯 测试5.1: XPath 选择器测试...');
+    
+    const xpathTests = [
+      { 
+        selector: '//button[contains(text(), "XPath测试按钮")]', 
+        desc: 'XPath按钮点击（文本匹配）' 
+      },
+      { 
+        selector: '//span[@class="xpath-text"]', 
+        desc: 'XPath文本提取（属性匹配）', 
+        action: 'extract' 
+      },
+      { 
+        selector: '//div[@data-testid="xpath-test"]//button', 
+        desc: 'XPath嵌套选择器点击' 
+      },
+      { 
+        selector: '//input[@type="text"]', 
+        desc: 'XPath输入框选择',
+        action: 'type',
+        text: 'XPath输入测试'
+      }
+    ];
+
+    for (const test of xpathTests) {
+      try {
+        console.log(`   测试: ${test.desc}`);
+        
+        let result;
+        if (test.action === 'extract') {
+          result = await agent.handleToolCall('browser.extract', {
+            selectors: { target: test.selector },
+            extractType: 'text',
+            selectorType: 'xpath'
+          });
+        } else if (test.action === 'type') {
+          result = await agent.handleToolCall('browser.type', {
+            selector: test.selector,
+            text: test.text,
+            selectorType: 'xpath',
+            timeout: 5000
+          });
+        } else {
+          result = await agent.handleToolCall('browser.click', {
+            selector: test.selector,
+            selectorType: 'xpath',
+            timeout: 5000
+          });
+        }
+        
+        if (result.success) {
+          console.log(`   ✅ ${test.desc} - 成功`);
+          if (test.action === 'extract' && result.data?.results?.target) {
+            console.log(`      提取内容: ${result.data.results.target.elements?.[0] || '无内容'}`);
+          }
+        } else {
+          console.log(`   ❌ ${test.desc} - 失败:`, result.error);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.log(`   ❌ ${test.desc} - 异常:`, error.message);
+      }
+    }
+
+    // 5.2. 测试链接功能
+    console.log('\n🔗 测试5.2: 链接测试...');
+    
+    const linkTests = [
+      { 
+        selector: 'a[href="#"]', 
+        desc: '第一个测试链接点击' 
+      },
+      { 
+        selector: 'a[href="javascript:void(0)"]', 
+        desc: '第二个测试链接点击' 
+      },
+      { 
+        selector: '//a[contains(text(), "测试链接")]', 
+        desc: 'XPath链接点击（文本匹配）',
+        selectorType: 'xpath' 
+      },
+      { 
+        selector: '//a[contains(text(), "另一个链接")]', 
+        desc: 'XPath另一个链接点击',
+        selectorType: 'xpath' 
+      }
+    ];
+
+    for (const test of linkTests) {
+      try {
+        console.log(`   测试: ${test.desc}`);
+        const clickResult = await agent.handleToolCall('browser.click', {
+          selector: test.selector,
+          selectorType: test.selectorType || 'auto',
+          timeout: 5000
+        });
+        
+        if (clickResult.success) {
+          console.log(`   ✅ ${test.desc} - 成功`);
+          console.log(`      方法: ${clickResult.data?.data?.method || '未知'}`);
+          console.log(`      选择器: ${clickResult.data?.data?.selector || '未知'}`);
+          console.log(`      执行时间: ${clickResult.data?.executionTime || 0}ms`);
+        } else {
+          console.log(`   ❌ ${test.desc} - 失败:`, clickResult.error);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.log(`   ❌ ${test.desc} - 异常:`, error.message);
+      }
     }
 
     // 6. 测试复杂交互链

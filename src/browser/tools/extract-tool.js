@@ -465,31 +465,36 @@ export class ExtractTool extends BaseBrowserTool {
       ? detectSelectorType(selector) 
       : selectorType;
 
-    // 等待元素出现
-    if (waitForElements) {
-      try {
-        if (finalSelectorType === 'xpath') {
-          await page.waitForXPath(selector, { timeout });
-        } else {
-          // 对于title等不可见元素，不要求visible: true
-          const isInvisibleElement = ['title', 'meta', 'script', 'style'].includes(selector.toLowerCase());
-          await page.waitForSelector(selector, { 
-            visible: !isInvisibleElement, 
-            timeout 
-          });
-        }
-      } catch (error) {
-        this.logger.warn(`等待元素超时: ${selector}`, error.message);
-        // 继续执行，不抛出错误
+    // 使用现代 Locator API 等待和查找元素
+    let elements = [];
+    try {
+      let locator;
+      
+      if (finalSelectorType === 'xpath') {
+        // XPath 选择器：使用 ::-p-xpath() 语法
+        locator = page.locator(`::-p-xpath(${selector})`);
+      } else {
+        // CSS 选择器
+        locator = page.locator(selector);
       }
-    }
 
-    // 查找元素
-    let elements;
-    if (finalSelectorType === 'xpath') {
-      elements = await page.$x(selector);
-    } else {
-      elements = await page.$$(selector);
+      // 等待元素出现（如果需要）
+      if (waitForElements) {
+        try {
+          await locator.waitFor({ timeout });
+        } catch (error) {
+          this.logger.warn(`等待元素超时: ${selector}`, error.message);
+          // 继续执行，不抛出错误
+        }
+      }
+
+      // 获取所有匹配的元素
+      const elementHandles = await locator.all();
+      elements = elementHandles;
+
+    } catch (error) {
+      this.logger.warn(`查找元素失败: ${selector}`, error.message);
+      elements = [];
     }
 
     if (elements.length === 0) {
