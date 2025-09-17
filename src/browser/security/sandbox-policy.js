@@ -77,7 +77,7 @@ export class BrowserSecurityPolicy {
       
       // 脚本执行验证
       if (toolName === BROWSER_TOOLS.EVALUATE) {
-        await this.validateScript(args.code);
+        await this.validateScript(args.script || args.code);
       }
       
       // 选择器验证

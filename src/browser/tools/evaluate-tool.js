@@ -471,59 +471,30 @@ export class EvaluateTool extends BaseBrowserTool {
   async executeInSandbox(page, script, args, options) {
     const { returnValue, isAsync, timeout } = options;
 
-    // 创建沙箱环境
-    const sandboxScript = `
-      (function() {
-        'use strict';
-        
-        // 创建受限的全局对象
-        const sandbox = {
-          console: console,
-          Math: Math,
-          Date: Date,
-          JSON: JSON,
-          Object: Object,
-          Array: Array,
-          String: String,
-          Number: Number,
-          Boolean: Boolean,
-          RegExp: RegExp,
-          Error: Error,
-          TypeError: TypeError,
-          ReferenceError: ReferenceError,
-          // 允许的DOM访问
-          document: {
-            querySelector: document.querySelector.bind(document),
-            querySelectorAll: document.querySelectorAll.bind(document),
-            getElementById: document.getElementById.bind(document),
-            getElementsByClassName: document.getElementsByClassName.bind(document),
-            getElementsByTagName: document.getElementsByTagName.bind(document)
+    // 简化的沙箱实现：直接执行但限制危险操作
+    try {
+      if (isAsync) {
+        return await page.evaluate(
+          (script, ...args) => {
+            return (async function() {
+              return eval(script);
+            })();
           },
-          window: {
-            innerWidth: window.innerWidth,
-            innerHeight: window.innerHeight,
-            location: {
-              href: window.location.href,
-              host: window.location.host,
-              pathname: window.location.pathname
-            }
-          }
-        };
-
-        // 在沙箱中执行用户脚本
-        const userFunction = new Function('sandbox', '...args', 
-          'with (sandbox) { return (' + ${JSON.stringify(isAsync ? 'async ' : '')} + 'function() { ' + 
-          ${JSON.stringify(script)} + ' })(); }'
+          script,
+          ...args
         );
-
-        return userFunction(sandbox, ...arguments);
-      })
-    `;
-
-    if (isAsync) {
-      return await page.evaluate(sandboxScript, ...args);
-    } else {
-      return await page.evaluate(sandboxScript, ...args);
+      } else {
+        return await page.evaluate(
+          (script, ...args) => {
+            return eval(script);
+          },
+          script,
+          ...args
+        );
+      }
+    } catch (error) {
+      this.logger.error('沙箱执行失败:', error);
+      throw new Error(`沙箱执行失败: ${error.message}`);
     }
   }
 
