@@ -10,6 +10,12 @@ export {
   sparkStreamRequest 
 } from './llm/index.js';
 
+// 导出统一 LLM Agent
+export {
+  UnifiedLLMAgent,
+  createUnifiedLLMAgent
+} from './llm/unified-agent.js';
+
 // 导出 Prompt 相关功能
 export { PromptBuilder } from './prompt/index.js';
 export { 
@@ -40,12 +46,17 @@ export {
 // 导出浏览器工具模块
 export * from './browser/index.js';
 
-// 导出 MCP 服务模块
+// 导出统一浏览器 MCP 服务
 export {
-  MCPBrowserServer,
-  createMCPBrowserServer,
-  startMCPBrowserServer
-} from './mcp/browser-server.js';
+  UnifiedBrowserMCPServer,
+  createUnifiedBrowserMCPServer,
+  startUnifiedBrowserMCPServer
+} from './mcp/unified-browser-server.js';
+
+export {
+  UnifiedBrowserMCPClient,
+  createUnifiedBrowserMCPClient
+} from './mcp/unified-browser-client.js';
 
 // agent-core 主入口，根据 README 示例导出核心 API
 

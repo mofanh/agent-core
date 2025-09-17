@@ -478,6 +478,14 @@ export class ExtractTool extends BaseBrowserTool {
         locator = page.locator(selector);
       }
 
+      // 配置 Locator：对于内容提取，我们不需要严格的可见性检查
+      // 因为我们可能需要提取隐藏元素或不在视口中的元素
+      locator = locator
+        .setVisibility(null)  // 不检查可见性
+        .setWaitForEnabled(false)  // 不等待启用状态
+        .setWaitForStableBoundingBox(false)  // 不等待稳定边界框
+        .setEnsureElementIsInTheViewport(false);  // 不确保在视口中
+
       // 等待元素出现（如果需要）
       if (waitForElements) {
         try {
@@ -489,7 +497,37 @@ export class ExtractTool extends BaseBrowserTool {
       }
 
       // 获取所有匹配的元素
-      const elementHandles = await locator.all();
+      let elementHandles = [];
+      if (multiple) {
+        // 对于多个元素，使用传统API
+        if (finalSelectorType === 'xpath') {
+          elementHandles = await page.$$(`xpath/${selector}`);
+        } else {
+          elementHandles = await page.$$(selector);
+        }
+      } else {
+        // 对于单个元素，使用Locator API
+        try {
+          const elementHandle = await locator.waitHandle();
+          if (elementHandle) {
+            elementHandles = [elementHandle];
+          }
+        } catch (error) {
+          this.logger.warn(`Locator获取元素失败: ${selector}`, error.message);
+          // 回退到传统API
+          try {
+            if (finalSelectorType === 'xpath') {
+              const element = await page.$(`xpath/${selector}`);
+              if (element) elementHandles = [element];
+            } else {
+              const element = await page.$(selector);
+              if (element) elementHandles = [element];
+            }
+          } catch (fallbackError) {
+            this.logger.warn(`传统API也失败: ${selector}`, fallbackError.message);
+          }
+        }
+      }
       elements = elementHandles;
 
     } catch (error) {

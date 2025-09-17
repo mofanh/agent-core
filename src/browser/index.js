@@ -147,6 +147,19 @@ export function getSupportedTools() {
       }
     },
     {
+      name: BROWSER_TOOLS.HOVER,
+      description: 'Hover over an element specified by selector',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS selector or XPath' },
+          timeout: { type: 'number', description: 'Timeout in milliseconds', default: 30000 },
+          index: { type: 'number', description: 'Element index if multiple matches', default: 0 }
+        },
+        required: ['selector']
+      }
+    },
+    {
       name: BROWSER_TOOLS.SCREENSHOT,
       description: 'Take a screenshot of the current page or specific element',
       parameters: {
