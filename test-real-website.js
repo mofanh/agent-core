@@ -5,7 +5,7 @@
  * 测试腾讯云开发者文章页面：https://cloud.tencent.com/developer/article/1919110
  */
 
-import { createUnifiedLLMAgent } from './src/llm/unified-agent.js';
+import { createLLMAgent } from './src/llm/index.js';
 import Logger from './src/utils/logger.js';
 
 const logger = new Logger('info');
@@ -23,7 +23,7 @@ async function realWebsiteTest() {
 
   try {
     // 创建统一 Agent
-    const agent = createUnifiedLLMAgent({
+    const agent = createLLMAgent({
       browser: {
         enabled: true,
         headless: false, // 显示浏览器以便观察

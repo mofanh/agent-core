@@ -7,14 +7,21 @@ export {
   openaiRequestHandler,
   createSparkLLM, 
   createOpenAILLM,
-  sparkStreamRequest 
+  sparkStreamRequest,
+  LLMAgent,
+  createLLMAgent,
+  createAgent,
+  // 向后兼容
+  UnifiedLLMAgent,
+  createUnifiedLLMAgent,
+  createUnifiedAgent
 } from './llm/index.js';
 
-// 导出统一 LLM Agent
-export {
-  UnifiedLLMAgent,
-  createUnifiedLLMAgent
-} from './llm/unified-agent.js';
+// 导出统一 LLM Agent（移除独立文件导入）
+// export {
+//   UnifiedLLMAgent,
+//   createUnifiedLLMAgent
+// } from './llm/unified-agent.js';
 
 // 导出 Prompt 相关功能
 export { PromptBuilder } from './prompt/index.js';

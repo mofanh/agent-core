@@ -3,7 +3,7 @@
  * 展示如何用统一架构替代 AgentCore 的直接函数调用
  */
 
-import { createUnifiedAgent } from './src/llm/unified-agent.js';
+import { createUnifiedAgent } from './src/llm/index.js';
 import { AgentCore } from './src/index.js';
 import Logger from './src/utils/logger.js';
 

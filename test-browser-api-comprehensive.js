@@ -5,7 +5,7 @@
  * 使用统一 LLM Agent 架构测试所有浏览器工具功能
  */
 
-import { createUnifiedLLMAgent } from './src/llm/unified-agent.js';
+import { createUnifiedLLMAgent } from './src/llm/index.js';
 import Logger from './src/utils/logger.js';
 import express from 'express';
 import http from 'http';

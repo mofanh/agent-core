@@ -5,7 +5,7 @@
  * 展示 LLM 模型调用路径的统一：MCP + 浏览器本地工具
  */
 
-import { createUnifiedLLMAgent } from './src/llm/unified-agent.js';
+import { createUnifiedLLMAgent } from './src/llm/index.js';
 import { createSparkLLM } from './src/llm/index.js';
 import Logger from './src/utils/logger.js';
 import express from 'express';

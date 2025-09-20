@@ -5,7 +5,7 @@
  * 演示如何将真实 LLM 与统一工具调用架构结合使用
  */
 
-import { createUnifiedLLMAgent } from './src/llm/unified-agent.js';
+import { createUnifiedLLMAgent } from './src/llm/index.js';
 import Logger from './src/utils/logger.js';
 import express from 'express';
 import http from 'http';

@@ -2,7 +2,7 @@
  * 简化演示：Unified-Agent 覆盖传统函数式调用
  */
 
-import { createUnifiedAgent } from './src/llm/unified-agent.js';
+import { createUnifiedAgent } from './src/llm/index.js';
 import Logger from './src/utils/logger.js';
 
 const logger = new Logger('info');

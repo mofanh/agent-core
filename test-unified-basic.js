@@ -5,7 +5,7 @@
  * 测试新的统一调用层基本功能
  */
 
-import { createUnifiedLLMAgent } from './src/llm/unified-agent.js';
+import { createUnifiedLLMAgent } from './src/llm/index.js';
 import Logger from './src/utils/logger.js';
 import express from 'express';
 import http from 'http';

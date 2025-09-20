@@ -5,7 +5,7 @@
  * 展示如何解析 LLM 输出的工具调用 JSON
  */
 
-import { createUnifiedLLMAgent } from './src/llm/unified-agent.js';
+import { createUnifiedLLMAgent } from './src/llm/index.js';
 import Logger from './src/utils/logger.js';
 import express from 'express';
 import http from 'http';

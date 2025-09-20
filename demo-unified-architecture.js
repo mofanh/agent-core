@@ -5,7 +5,7 @@
  * 展示如何使用新的统一调用层让 LLM 输出工具调用 JSON 来控制所有操作
  */
 
-import { createUnifiedLLMAgent } from './src/llm/unified-agent.js';
+import { createUnifiedLLMAgent } from './src/llm/index.js';
 import { createSparkLLM } from './src/llm/index.js';
 import Logger from './src/utils/logger.js';
 
