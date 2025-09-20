@@ -188,7 +188,7 @@ export class UnifiedLLMAgent extends EventEmitter {
 
     // 注册 MCP 工具到统一接口
     if (this.mcpSystem && this.mcpSystem.toolSystem) {
-      const mcpTools = await this.mcpSystem.toolSystem.listTools();
+      const mcpTools = this.mcpSystem.toolSystem.getTools();
       
       for (const tool of mcpTools) {
         this.toolRegistry.set(tool.name, {
@@ -495,6 +495,109 @@ ${JSON.stringify(toolDefinitions, null, 2)}
   }
 
   /**
+   * 兼容 AgentCore 的 callTool 方法
+   * @param {string} toolName - 工具名称
+   * @param {Object} args - 工具参数
+   * @param {Object} options - 调用选项
+   * @returns {Promise<Object>} 工具调用结果
+   */
+  async callTool(toolName, args = {}, options = {}) {
+    const toolCall = {
+      id: options.callId || `call_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      name: toolName,
+      args
+    };
+    
+    return await this.executeUnifiedToolCall(toolCall);
+  }
+
+  /**
+   * 兼容 AgentCore 的 handleToolCall 方法
+   * @param {string} toolName - 工具名称
+   * @param {Object} args - 工具参数
+   * @param {string} callId - 调用ID
+   * @returns {Promise<Object>} 工具执行结果
+   */
+  async handleToolCall(toolName, args, callId) {
+    const toolCall = {
+      id: callId,
+      name: toolName,
+      args
+    };
+    
+    try {
+      return await this.executeUnifiedToolCall(toolCall);
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        toolName,
+        callId
+      };
+    }
+  }
+
+  /**
+   * 执行工具链 (兼容 AgentCore)
+   * @param {Array} toolChain - 工具链定义
+   * @param {Object} initialData - 初始数据
+   * @param {Object} options - 执行选项
+   * @returns {Promise<Array>} 工具链执行结果
+   */
+  async executeToolChain(toolChain, initialData = {}, options = {}) {
+    const results = [];
+    let currentData = { ...initialData };
+    
+    for (const toolStep of toolChain) {
+      try {
+        // 支持动态参数注入
+        const resolvedArgs = typeof toolStep.args === 'function' 
+          ? toolStep.args(currentData) 
+          : toolStep.args;
+          
+        const result = await this.callTool(toolStep.name, resolvedArgs, options);
+        
+        results.push({
+          step: toolStep.name,
+          success: result.success,
+          data: result.data || result,
+          error: result.error
+        });
+        
+        // 更新上下文数据
+        if (result.success && result.data) {
+          currentData = { ...currentData, ...result.data };
+        }
+        
+      } catch (error) {
+        results.push({
+          step: toolStep.name,
+          success: false,
+          error: error.message
+        });
+        
+        if (!options.continueOnError) {
+          break;
+        }
+      }
+    }
+    
+    return results;
+  }
+
+  /**
+   * 获取可用工具列表 (兼容 AgentCore)
+   * @returns {Array} 工具列表
+   */
+  getTools() {
+    return Array.from(this.toolRegistry.keys()).map(name => ({
+      name,
+      type: this.toolRegistry.get(name).type,
+      description: this.generateToolDescription(name, this.toolRegistry.get(name))
+    }));
+  }
+
+  /**
    * 获取统计信息
    */
   getStats() {
@@ -519,11 +622,11 @@ ${JSON.stringify(toolDefinitions, null, 2)}
    * 清理资源
    */
   async cleanup() {
-    if (this.mcpSystem) {
+    if (this.mcpSystem && typeof this.mcpSystem.cleanup === 'function') {
       await this.mcpSystem.cleanup();
     }
     
-    if (this.browserToolManager) {
+    if (this.browserToolManager && typeof this.browserToolManager.cleanup === 'function') {
       await this.browserToolManager.cleanup();
     }
     
@@ -537,6 +640,35 @@ ${JSON.stringify(toolDefinitions, null, 2)}
  */
 export function createUnifiedLLMAgent(config = {}) {
   return new UnifiedLLMAgent(config);
+}
+
+/**
+ * 创建兼容 AgentCore 的统一 Agent (可直接替代 AgentCore)
+ * @param {Object} config - 配置项
+ * @returns {UnifiedLLMAgent} 统一 Agent 实例
+ */
+export function createUnifiedAgent(config = {}) {
+  // 默认启用浏览器和 MCP 功能，保持与 AgentCore 的兼容性
+  const defaultConfig = {
+    browser: {
+      enabled: true,
+      headless: true,
+      ...config.browser
+    },
+    mcp: {
+      servers: [],
+      ...config.mcp
+    },
+    llm: config.llm || null,
+    agent: {
+      maxRetries: 3,
+      timeout: 30000,
+      enableFallback: true,
+      ...config.agent
+    }
+  };
+
+  return new UnifiedLLMAgent(defaultConfig);
 }
 
 export default UnifiedLLMAgent;
