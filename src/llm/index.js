@@ -599,7 +599,16 @@ export class LLMAgent extends EventEmitter {
       ...enhancedPrompt,
       model: '4.0Ultra',
       stream: true, // 启用流式处理
-      max_tokens: 2000
+      max_tokens: 32768,
+      tools: [
+        {
+          web_search: {
+            search_mode: 'normal',
+            enable: false
+          },
+          type: 'web_search'
+        }
+      ]
     });
 
     // 收集流式响应
@@ -833,9 +842,9 @@ ${JSON.stringify(toolDefinitions, null, 2)}
 
     return {
       messages: [
-        { role: 'system', content: systemPrompt },
+        // { role: 'system', content: systemPrompt },
         ...(Array.isArray(originalPrompt.messages) ? originalPrompt.messages : [
-          { role: 'user', content: originalPrompt.content || originalPrompt }
+          { role: 'user', content: systemPrompt + "\n\n" +(originalPrompt.content || originalPrompt) }
         ])
       ],
       // ...originalPrompt
