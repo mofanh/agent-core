@@ -78,21 +78,15 @@ async function runAgentAutoMode(query, options) {
         autoExecuteTools: true
       });
 
-      // 展示 LLM 响应
+      console.log("agent-cli-simple result--", result);
+
+      // LLM响应现在是流式输出，已经在执行过程中显示了
       let llmMessage = '';
       if (result.data?.llmResponse) {
-        const msg = result.data.llmResponse.choices?.[0]?.message?.content || '';
-        llmMessage = msg;
-        console.log(chalk.green('🤖 LLM 回复:'));
-        console.log(msg);
+        llmMessage = result.data.llmResponse.choices?.[0]?.message?.content || '';
         
-        // 调试：显示完整响应结构
-        if (!msg) {
-          console.log('调试 - LLM 响应结构:', JSON.stringify(result.data.llmResponse, null, 2));
-        }
-        
-        // 检查是否任务完成 - 如果没有工具调用，说明 LLM 直接回答了问题
-        if (/任务完成|已完成|总结完成|分析完毕/.test(msg) || result.data.toolCalls.length === 0) {
+        // 检查是否任务完成 - 如果没有工具调用或明确表示完成，则结束
+        if (/任务完成|已完成|总结完成|分析完毕/.test(llmMessage) || result.data.toolCalls.length === 0) {
           done = true;
         }
       }

@@ -1,0 +1,45 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Agent CLI Simple",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/agent-cli-simple.js",
+            "args": ["exec", "查看网页https://cloud.tencent.com/developer/article/2435791并总结"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/bin"
+        },
+        {
+            "name": "Debug Agent CLI",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/agent-cli.js",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/bin"
+        },
+        {
+            "name": "Debug Current File",
+            "type": "node",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug MCP Browser Server",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/mcp-browser-server.js",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug Tests",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/.bin/jest",
+            "args": ["--runInBand", "${file}"],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        }
+    ]
+}

@@ -5,6 +5,7 @@
 
 import { EventEmitter } from 'events';
 import Logger from '../utils/logger.js';
+import chalk from 'chalk';
 
 export class LLM {
   /**
@@ -578,7 +579,7 @@ export class LLMAgent extends EventEmitter {
   }
 
   /**
-   * 执行 LLM + 工具组合任务
+   * 执行 LLM + 工具组合任务 (使用流式处理)
    */
   async executeLLMWithTools(task) {
     const { prompt, tools, maxIterations = 5, autoExecuteTools = true } = task;
@@ -592,15 +593,49 @@ export class LLMAgent extends EventEmitter {
     // 构建带工具定义的提示
     const enhancedPrompt = this.buildToolAwarePrompt(prompt, tools);
     
-    // LLM 推理 - 添加 model 参数
-    const llmResponse = await this.llm.post({
+    // LLM 流式推理
+    console.log(chalk.cyan('🤖 LLM 思考中...'));
+    const streamResult = await this.llm.post({
       ...enhancedPrompt,
-      model: '4.0Ultra', // 星火模型
-      // max_tokens: 2000
+      model: '4.0Ultra',
+      stream: true, // 启用流式处理
+      max_tokens: 2000
     });
-    
-    this.logger.info('🤖 LLM 响应:', llmResponse);
 
+    // 收集流式响应
+    let fullContent = '';
+    let lastChunk = null;
+    
+    if (streamResult && typeof streamResult[Symbol.asyncIterator] === 'function') {
+      // 流式处理
+      for await (const chunk of streamResult) {
+        lastChunk = chunk;
+        if (chunk.choices && chunk.choices[0] && chunk.choices[0].delta && chunk.choices[0].delta.content) {
+          const content = chunk.choices[0].delta.content;
+          process.stdout.write(content);
+          fullContent += content;
+        }
+      }
+      process.stdout.write('\n'); // 换行
+    } else {
+      // 非流式处理的后备方案
+      lastChunk = streamResult;
+      if (lastChunk.choices && lastChunk.choices[0] && lastChunk.choices[0].message) {
+        fullContent = lastChunk.choices[0].message.content || '';
+        console.log(fullContent);
+      }
+    }
+
+    // 构建完整的响应对象
+    const llmResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: fullContent
+        }
+      }]
+    };
+    
     // 解析工具调用
     const toolCalls = this.parseToolCallsFromLLMResponse(llmResponse);
     
