@@ -592,8 +592,12 @@ export class LLMAgent extends EventEmitter {
     // 构建带工具定义的提示
     const enhancedPrompt = this.buildToolAwarePrompt(prompt, tools);
     
-    // LLM 推理
-    const llmResponse = await this.llm.post(enhancedPrompt);
+    // LLM 推理 - 添加 model 参数
+    const llmResponse = await this.llm.post({
+      ...enhancedPrompt,
+      model: '4.0Ultra', // 星火模型
+      // max_tokens: 2000
+    });
     
     this.logger.info('🤖 LLM 响应:', llmResponse);
 
@@ -766,8 +770,10 @@ export class LLMAgent extends EventEmitter {
 ${JSON.stringify(toolDefinitions, null, 2)}
 
 工具调用规则：
-1. 当需要使用工具时，请输出标准的 JSON 格式工具调用
-2. 格式示例：
+1. 仅在真正需要时才使用工具，优先直接回答用户问题
+2. 如果用户只是打招呼或问简单问题，直接回答即可，不需要使用工具
+3. 需要访问网页、获取实时信息或执行特定操作时，才使用相应工具
+4. 工具调用格式：
 \`\`\`json
 [
   {
@@ -781,10 +787,10 @@ ${JSON.stringify(toolDefinitions, null, 2)}
 ]
 \`\`\`
 
-3. 可以同时调用多个工具
-4. 工具执行结果会自动返回给你
+5. 可以同时调用多个工具
+6. 工具执行结果会自动返回给你，用于生成最终回答
 
-请根据用户需求智能选择和使用工具。`;
+请根据用户实际需求智能选择是否使用工具。`;
 
     return {
       messages: [
