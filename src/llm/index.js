@@ -827,6 +827,10 @@ ${JSON.stringify(toolDefinitions, null, 2)}
 
 请根据用户实际需求智能选择是否使用工具。`;
 
+// console.log(chalk.gray('--- System Prompt ---'));
+// console.log(chalk.gray(systemPrompt));
+// console.log(chalk.gray('---------------------'));
+
     return {
       messages: [
         { role: 'system', content: systemPrompt },
@@ -834,7 +838,7 @@ ${JSON.stringify(toolDefinitions, null, 2)}
           { role: 'user', content: originalPrompt.content || originalPrompt }
         ])
       ],
-      ...originalPrompt
+      // ...originalPrompt
     };
   }
 
