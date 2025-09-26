@@ -22,7 +22,7 @@ program
   .description('执行智能代理任务 (LLM 自动规划+工具调用)')
   .option('--provider <provider>', 'LLM 提供商', 'spark')
   .option('--max-iterations <number>', '最大迭代次数', parseInt, 5)
-  .option('--headless', '无头浏览器', true)
+  .option('--headless', '无头浏览器', false)
   .action(async (query, options) => {
     await runAgentAutoMode(query, options);
   });
@@ -85,11 +85,11 @@ async function runAgentAutoMode(query, options) {
       let llmMessage = '';
       if (result.data) {
         llmMessage = result.data.choices?.[0]?.message?.content || '';
-        
-        console.log("result.data.toolCalls--", result.toolCalls);
+
+        console.log("result.data.toolCalls--", result?.data?.toolCalls);
 
         // 检查是否任务完成 - 如果没有工具调用或明确表示完成，则结束
-        if (/任务完成|已完成|总结完成|分析完毕/.test(llmMessage) || result.toolCalls.length === 0) {
+        if (/任务完成|已完成|总结完成|分析完毕/.test(llmMessage) || result?.data?.toolCalls?.length === 0) {
           done = true;
         }
       }

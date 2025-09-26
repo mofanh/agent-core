@@ -2,14 +2,14 @@
 
 /**
  * 真实网页浏览器工具测试
- * 测试腾讯云开发者文章页面：https://cloud.tencent.com/developer/article/1919110
+ * 测试腾讯云开发者文章页面：https://course.rs/basic/collections/intro.html
  */
 
 import { createLLMAgent } from './src/llm/index.js';
 import Logger from './src/utils/logger.js';
 
 const logger = new Logger('info');
-const TEST_URL = 'https://cloud.tencent.com/developer/article/1919110';
+const TEST_URL = 'https://course.rs/basic/collections/intro.html';
 
 async function realWebsiteTest() {
   logger.info('🚀 启动真实网页浏览器工具测试...\n');
@@ -26,7 +26,7 @@ async function realWebsiteTest() {
     const agent = createLLMAgent({
       browser: {
         enabled: true,
-        headless: false, // 显示浏览器以便观察
+        headless: true,
         security: {
           level: 'permissive',
           allowNavigation: true,
