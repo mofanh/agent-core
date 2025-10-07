@@ -852,47 +852,7 @@ export async function batchProcess(tasks, options = {}) {
   return results;
 }
 
-// 创建 agent（支持预设名或自定义配置）
-export function createAgent(presetOrConfig, options = {}) {
-  if (typeof presetOrConfig === 'string') {
-    const config = { ...PRESET_CONFIGS[presetOrConfig], ...options };
-    return new AgentCore(config);
-  }
-  return new AgentCore({ ...presetOrConfig, ...options });
-}
-
-// 创建带 LLM 的 Agent
-export function createLLMAgent(provider, options = {}) {
-  let llmConfig;
-  
-  if (typeof provider === 'string') {
-    // 使用预注册的提供商
-    llmConfig = {
-      provider,
-      options
-    };
-  } else if (typeof provider === 'function') {
-    // 直接传入请求处理函数
-    llmConfig = {
-      requestHandler: provider,
-      provider: options.provider || 'custom',
-      options: options.options || {}
-    };
-  } else {
-    // 完整配置对象
-    llmConfig = provider;
-  }
-
-  const config = {
-    ...PRESET_CONFIGS[options.preset || 'basic'],
-    llm: llmConfig,
-    ...options
-  };
-  
-  return new AgentCore(config);
-}
-
-// 便捷的创建函数
+// 便捷的创建函数（使用从 llm/index.js 导入的 createLLMAgent 和 createAgent）
 export function createSparkAgent(options = {}) {
   return createLLMAgent('spark', options);
 }

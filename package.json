@@ -106,6 +106,7 @@
     "commander": "^12.1.0",
     "inquirer": "^9.3.7",
     "ora": "^8.2.0",
-    "puppeteer": "^24.19.0"
+    "puppeteer": "^24.19.0",
+    "toml": "^3.0.0"
   }
 }

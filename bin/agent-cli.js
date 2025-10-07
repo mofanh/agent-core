@@ -35,11 +35,11 @@ import {
   AgentCore,
   LLMFactory,
   MCPConnectionManager,
-  MCPBrowserClient,
-  createMCPBrowserServer,
-  startMCPBrowserServer,
   PRESET_CONFIGS
 } from '../src/index.js';
+import { MCPBrowserClient } from '../src/mcp/browser-client.js';
+import { createMCPBrowserServer, startMCPBrowserServer } from '../src/mcp/browser-server.js';
+import { loadConfig, extractMcpServers, ensureDefaultConfigTemplate, resolveConfigPath } from '../src/utils/config-loader.js';
 
 // 导入 TUI 模块
 import AgentTUI from '../src/tui/index.js';
@@ -284,7 +284,7 @@ async function performThinkingLoop(agent, query, globalOpts, options, spinner, i
       if (options.enableBrowser || agent.browserClient || agent.browserToolManager) {
         enabledTools.push('browser');
       }
-      if (options.enableMcp || agent.mcpManager) {
+      if (options.enableMcp || agent.mcpManager || agent.mcpSystem) {
         enabledTools.push('mcp');
       }
 
@@ -655,8 +655,11 @@ async function executeToolCall(agent, tool, options) {
       } else {
         throw new Error('浏览器工具未启用');
       }
+    } else if (agent.mcpSystem && agent.mcpSystem.callTool) {
+      // 通过配置化的 MCP 系统调用
+      return await agent.mcpSystem.callTool(tool.name, tool.args);
     } else if (agent.mcpManager) {
-      // 其他 MCP 工具调用
+      // 兼容旧的 mcpManager
       return await agent.mcpManager.callTool(tool.name, tool.args);
     } else {
       throw new Error(`未知的工具: ${tool.name}`);
@@ -674,6 +677,9 @@ async function executeToolCall(agent, tool, options) {
  * 初始化 Agent 实例
  */
 async function initializeAgent(globalOpts, cmdOpts) {
+  // Load external config (TOML/JSON) and merge
+  const { config: fileCfg } = loadConfig(globalOpts.config);
+
   // 首先注册 LLM 提供商
   const { LLMFactory, openaiRequestHandler, sparkRequestHandler } = await import('../src/llm/index.js');
   
@@ -693,14 +699,14 @@ async function initializeAgent(globalOpts, cmdOpts) {
 
   const config = {
     llm: {
-      provider: globalOpts.provider,
+      provider: fileCfg?.llm?.provider || globalOpts.provider,
       options: {
-        model: globalOpts.model,
-        apiKey: globalOpts.apiKey || 
-                (globalOpts.provider === 'spark' ? process.env.SPARK_API_KEY : process.env.OPENAI_API_KEY),
-        baseURL: globalOpts.baseUrl,
-        maxTokens: globalOpts.maxTokens,
-        temperature: globalOpts.temperature
+        model: fileCfg?.llm?.options?.model || globalOpts.model,
+        apiKey: globalOpts.apiKey || fileCfg?.llm?.options?.apiKey ||
+                ((fileCfg?.llm?.provider || globalOpts.provider) === 'spark' ? process.env.SPARK_API_KEY : process.env.OPENAI_API_KEY),
+        baseURL: fileCfg?.llm?.options?.baseURL || globalOpts.baseUrl,
+        maxTokens: fileCfg?.llm?.options?.maxTokens || globalOpts.maxTokens,
+        temperature: fileCfg?.llm?.options?.temperature || globalOpts.temperature
       }
     },
     prompt: {
@@ -727,6 +733,16 @@ async function initializeAgent(globalOpts, cmdOpts) {
       }
     }
   };
+
+  // Inject MCP servers from config
+  const mcpServers = extractMcpServers(fileCfg);
+  if (mcpServers.length > 0) {
+    config.mcp = {
+      servers: mcpServers,
+      manager: fileCfg?.mcp?.manager || {},
+      toolSystem: fileCfg?.mcp?.toolSystem || {}
+    };
+  }
 
   const agent = new AgentCore(config);
   await agent.initialize();
@@ -768,8 +784,9 @@ async function initializeAgent(globalOpts, cmdOpts) {
   }
 
   // 启用 MCP 连接
-  if (cmdOpts.enableMcp) {
-    agent.mcpManager = new MCPConnectionManager();
+  // If CLI flag requests MCP, and not provided by config, create empty manager (no servers)
+  if (cmdOpts.enableMcp && !agent.mcpSystem) {
+    agent.mcpManager = new MCPConnectionManager({ servers: [] });
   }
 
   return agent;
@@ -803,8 +820,10 @@ async function cleanup(agent) {
   if (agent.browserToolManager) {
     await agent.browserToolManager.cleanup();
   }
-  if (agent.mcpManager) {
-    await agent.mcpManager.disconnectAll();
+  if (agent.mcpSystem) {
+    await agent.mcpSystem.shutdown();
+  } else if (agent.mcpManager && agent.mcpManager.shutdown) {
+    await agent.mcpManager.shutdown();
   }
 }
 
@@ -813,16 +832,33 @@ async function cleanup(agent) {
  */
 async function initConfig(options) {
   console.log(chalk.blue('🔧 初始化 Agent-Core 配置...'));
-  // TODO: 实现配置文件创建
+  const path = ensureDefaultConfigTemplate();
   console.log(chalk.green('✅ 配置初始化完成'));
+  console.log('配置路径:', chalk.cyan(path));
 }
 
 /**
  * 显示配置
  */
 async function showConfig() {
+  const { path, format, config } = (() => {
+    const p = resolveConfigPath();
+    if (!p) return { path: null, format: null, config: {} };
+    const loaded = loadConfig(p);
+    return { path: loaded.path, format: loaded.format, config: loaded.config };
+  })();
+
   console.log(chalk.blue('📋 当前配置:'));
-  // TODO: 实现配置显示
+  if (!path) {
+    console.log(chalk.yellow('未找到配置文件。可运行 `agent-cli config init` 生成模板。'));
+    return;
+  }
+  console.log('路径:', chalk.cyan(path), '格式:', chalk.cyan(format || 'unknown'));
+  try {
+    console.log(JSON.stringify(config, null, 2));
+  } catch {
+    console.log(config);
+  }
 }
 
 /**

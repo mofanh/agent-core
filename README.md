@@ -270,6 +270,12 @@ npm run build
 - `lib/umd.js` - UMD 格式
 - `lib/amd.js` - AMD 格式
 
+## 文档与配置
+
+- CLI 使用: [docs/CLI_USAGE.md](./docs/CLI_USAGE.md)
+- MCP 集成说明: [docs/mcp_integration.md](./docs/mcp_integration.md)
+- MCP 配置（Codex 风格）: [docs/mcp_config.md](./docs/mcp_config.md)
+
 ## 许可证
 
 MIT License
