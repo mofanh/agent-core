@@ -530,7 +530,8 @@ export class LLMAgent extends EventEmitter {
         this.toolRegistry.set(tool.name, {
           type: 'mcp',
           handler: this.mcpSystem.toolSystem,
-          schema: tool.inputSchema
+          schema: tool.inputSchema,
+          description: tool.description  // 保存 MCP 工具的描述
         });
       }
       
@@ -875,6 +876,12 @@ ${JSON.stringify(toolDefinitions, null, 2)}
    * 生成工具描述
    */
   generateToolDescription(name, info) {
+    // 优先使用工具自带的描述
+    if (info.description) {
+      return info.description;
+    }
+    
+    // 回退到默认描述
     const typeMap = {
       browser: '浏览器操作',
       mcp: 'MCP服务'

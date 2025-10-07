@@ -3,9 +3,11 @@
 /**
  * 简化版 Agent-CLI
  * 基于 test-simplified-agent-cli.js 的成功经验重新实现
+ * 支持 MCP (Model Context Protocol) 配置调用框架
  */
 
 import { createLLMAgent } from '../src/llm/index.js';
+import { loadConfig, extractMcpServers } from '../src/utils/config-loader.js';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import readline from 'node:readline/promises';
@@ -124,25 +126,100 @@ program
   .description('执行智能代理任务 (LLM 自动规划+工具调用)')
   .option('--provider <provider>', 'LLM 提供商', 'spark')
   .option('--max-iterations <number>', '最大迭代次数', parseInt, 5)
-  .option('--headless', '无头浏览器', false)
+  .option('--headless', '无头浏览器 (仅当未配置MCP时生效)')
+  .option('--no-mcp', '禁用 MCP，强制使用内置浏览器工具')
   .action(async (query, options) => {
     await runAgentAutoMode(query, options);
   });
 
+program
+  .command('config')
+  .description('显示配置信息')
+  .action(async () => {
+    try {
+      console.log(chalk.blue.bold('📋 配置信息'));
+      console.log('');
+      
+      const { config, path, format } = loadConfig();
+      
+      if (!path) {
+        console.log(chalk.yellow('⚠️  未找到配置文件'));
+        console.log(chalk.gray('   提示: 运行 `node bin/agent-cli.js config init` 初始化配置'));
+        return;
+      }
+      
+      console.log(chalk.green('✅ 配置文件路径:'), path);
+      console.log(chalk.green('✅ 配置文件格式:'), format);
+      console.log('');
+      
+      const mcpServers = extractMcpServers(config);
+      
+      if (mcpServers.length === 0) {
+        console.log(chalk.yellow('⚠️  没有配置 MCP 服务器'));
+        console.log(chalk.gray('   将使用内置浏览器工具'));
+      } else {
+        console.log(chalk.green(`✅ MCP 服务器数量: ${mcpServers.length}`));
+        console.log('');
+        mcpServers.forEach((server, idx) => {
+          console.log(chalk.cyan(`[${idx + 1}] ${server.name}`));
+          console.log(chalk.gray(`    命令: ${server.command}`));
+          console.log(chalk.gray(`    参数: ${server.args.join(' ')}`));
+          console.log(chalk.gray(`    传输: ${server.transport || 'stdio'}`));
+          if (server.env && Object.keys(server.env).length > 0) {
+            console.log(chalk.gray(`    环境变量: ${Object.keys(server.env).join(', ')}`));
+          }
+          console.log('');
+        });
+      }
+      
+    } catch (error) {
+      console.error(chalk.red('❌ 配置加载失败:'), error.message);
+    }
+  });
+
 async function runAgentAutoMode(query, options) {
   let rl;
+  let agent = null;
+  
   try {
     console.log(chalk.blue.bold('🚀 启动全自动 Agent-CLI (LLM 规划+工具调用)'));
-    const agent = createLLMAgent({
-      browser: {
-        enabled: true,
-        headless: !!options.headless,
-        security: {
-          level: 'normal',
-          allowedDomains: ['*'],
-          allowedProtocols: ['https:', 'http:']
+    
+    // 1. 加载 MCP 配置
+    console.log(chalk.cyan('📄 正在加载配置文件...'));
+    let mcpServers = [];
+    
+    if (options.mcp !== false) {
+      // 默认启用 MCP，除非使用 --no-mcp
+      try {
+        const { config, path, format } = loadConfig();
+        if (path) {
+          console.log(chalk.green(`✅ 配置文件: ${path} (${format})`));
+          mcpServers = extractMcpServers(config);
+          
+          if (mcpServers.length > 0) {
+            console.log(chalk.green(`✅ 发现 ${mcpServers.length} 个 MCP 服务器:`));
+            mcpServers.forEach(server => {
+              console.log(chalk.gray(`   - ${server.name}: ${server.command} ${server.args.join(' ')}`));
+            });
+          } else {
+            console.log(chalk.yellow('⚠️  配置文件中没有 MCP 服务器，将使用内置浏览器工具'));
+          }
+        } else {
+          console.log(chalk.yellow('⚠️  未找到配置文件，将使用内置浏览器工具'));
+          console.log(chalk.gray('   提示: 运行 `node bin/agent-cli.js config init` 初始化配置'));
         }
-      },
+      } catch (error) {
+        console.log(chalk.yellow(`⚠️  配置加载失败: ${error.message}`));
+        console.log(chalk.yellow('   将使用内置浏览器工具'));
+      }
+    } else {
+      console.log(chalk.yellow('⚠️  已禁用 MCP (--no-mcp)，将使用内置浏览器工具'));
+    }
+    console.log('');
+    
+    // 2. 创建 Agent
+    console.log(chalk.cyan('🤖 正在创建 Agent...'));
+    const agentConfig = {
       llm: {
         provider: options.provider || 'spark',
         options: {
@@ -153,12 +230,72 @@ async function runAgentAutoMode(query, options) {
         maxRetries: 2,
         timeout: 60000
       }
-    });
+    };
+    
+    // 优先使用 MCP 工具，如果没有配置则使用内置浏览器工具
+    if (mcpServers.length > 0) {
+      agentConfig.mcp = {
+        servers: mcpServers
+      };
+      console.log(chalk.green('✅ 使用 MCP 工具系统'));
+    } else {
+      // 暂时注释掉内置浏览器工具，专注测试 MCP
+      // agentConfig.browser = {
+      //   enabled: true,
+      //   headless: !!options.headless,
+      //   security: {
+      //     level: 'normal',
+      //     allowedDomains: ['*'],
+      //     allowedProtocols: ['https:', 'http:']
+      //   }
+      // };
+      console.log(chalk.yellow('⚠️  未配置 MCP 且内置浏览器工具已禁用'));
+      console.log(chalk.yellow('   请配置 MCP 服务器后重试'));
+      // console.log(chalk.green('✅ 使用内置浏览器工具'));
+    }
+    
+    agent = createLLMAgent(agentConfig);
 
     await agent.initialize();
-    console.log(chalk.green(`📝 已注册工具: ${agent.toolRegistry.size} 个`));
-    for (const [name, info] of agent.toolRegistry) {
-      console.log(`   - ${name} (${info.type})`);
+    
+    // 如果配置了 MCP，需要初始化连接并等待工具加载后重新注册
+    if (agent.mcpSystem) {
+      console.log(chalk.cyan('⏳ 正在初始化 MCP 连接...'));
+      
+      // 初始化 MCP 连接
+      if (agent.mcpSystem.initialize) {
+        await agent.mcpSystem.initialize();
+        console.log(chalk.green('✅ MCP 连接初始化完成'));
+      }
+      
+      // 等待工具加载
+      console.log(chalk.cyan('⏳ 等待 MCP 工具加载...'));
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const mcpTools = agent.mcpSystem.toolSystem ? agent.mcpSystem.toolSystem.getTools() : [];
+      if (mcpTools.length > 0) {
+        console.log(chalk.green(`� MCP 工具已加载: ${mcpTools.length} 个`));
+        
+        // 重新注册 MCP 工具到 toolRegistry（包含完整描述）
+        for (const tool of mcpTools) {
+          agent.toolRegistry.set(tool.name, {
+            type: 'mcp',
+            handler: agent.mcpSystem.toolSystem,
+            schema: tool.inputSchema,
+            description: tool.description
+          });
+        }
+        console.log(chalk.green(`✅ 已重新注册 ${mcpTools.length} 个 MCP 工具`));
+      }
+    }
+    
+    console.log(chalk.green(`�📝 已注册工具: ${agent.toolRegistry.size} 个`));
+    for (const [name, info] of Array.from(agent.toolRegistry.entries()).slice(0, 5)) {
+      const desc = info.description ? `: ${info.description.substring(0, 50)}` : '';
+      console.log(chalk.gray(`   - ${name} (${info.type})${desc}`));
+    }
+    if (agent.toolRegistry.size > 5) {
+      console.log(chalk.gray(`   ... 还有 ${agent.toolRegistry.size - 5} 个工具`));
     }
 
     const maxIterations = options.maxIterations || 5;
@@ -185,14 +322,14 @@ async function runAgentAutoMode(query, options) {
       });
 
       // console.log("agent-cli-simple result--");
-      console.dir(result, { depth: 10, colors: true });
+      // console.dir(result, { depth: 10, colors: true });
 
       // LLM响应现在是流式输出，已经在执行过程中显示了
       let llmMessage = '';
       if (result.data) {
         llmMessage = result.data.choices?.[0]?.message?.content || '';
 
-        console.log("result.data.toolCalls--", result?.data?.toolCalls);
+        // console.log("result.data.toolCalls--", result?.data?.toolCalls);
 
         // 检查是否任务完成 - 如果没有工具调用或明确表示完成，则结束
         if (/任务完成|已完成|总结完成|分析完毕/.test(llmMessage)) {

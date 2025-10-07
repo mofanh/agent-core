@@ -1,0 +1,21 @@
+# agent-core configuration (Codex-style TOML)
+# See docs/mcp_config.md for details.
+#
+# 注意: MCP 服务器需要 Node.js 22.20.0+
+# 使用前请先运行: nvm use 22.20.0
+
+[mcp_servers.chrome-devtools]
+command = "npx"
+args = ["-y", "chrome-devtools-mcp@latest"]
+# Example of passing flags:
+# args = ["-y", "chrome-devtools-mcp@latest", "--headless=true", "--isolated=true"]
+# env = { "EXAMPLE_KEY" = "" }
+
+# 添加更多 MCP 服务器
+# [mcp_servers.filesystem]
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-filesystem", "/allowed/directory"]
+# 
+# [mcp_servers.postgres]
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
