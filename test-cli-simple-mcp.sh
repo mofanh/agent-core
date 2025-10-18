@@ -27,7 +27,7 @@ echo ""
 # 2. 使用 MCP 执行简单任务
 echo "2️⃣ 使用 MCP 执行简单浏览任务"
 echo "----------------------------------------"
-node bin/agent-cli-simple.js exec "访问 https://course.rs/basic/trait/trait-object.html 并告诉我页面标题和主要内容" --max-iterations 100
+node bin/agent-cli-simple.js exec "访问 https://course.rs/basic/trait/generic.html 和该页面的下一页（下一页需要找到跳转的超链接进行跳转） 并告诉我页面标题和主要内容" --max-iterations 10000
 echo ""
 
 # 3. 使用 --no-mcp 强制使用内置工具
